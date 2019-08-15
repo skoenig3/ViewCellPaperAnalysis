@@ -50,8 +50,8 @@ for monk = 2:-1:1
     if strcmpi(monkey,'Vivian')
         excel_dir = 'P:\eblab\PLX files\Vivian\';
         excel_file = [excel_dir 'Vivian_Recording_Notes-ListSQ.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\PW Recording Files\';
-        figure_dir{1} = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\PW Figures\';
+        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\PW Recording Files\';
+        figure_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\PW Figures\';
         
         %listsq_read_excel(data_dir,excel_file);
         load([data_dir 'Across_Session_Unit_Data_Vivian.mat'])
@@ -62,8 +62,8 @@ for monk = 2:-1:1
     elseif strcmpi(monkey,'Tobii')
         excel_dir = 'P:\eblab\PLX files\Tobii\';
         excel_file = [excel_dir 'Tobii_recordingnotes.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\TO Recording Files\';
-        figure_dir{2} = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\TO Figures\';
+        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+        figure_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\TO Figures\';
         
         predict_rt = 135;%ms prediction 5-percentile
         chamber_zero = [7.5 15]; %AP ML, his posertior hippocampus appears slightly shorter/more compressed than atlas
@@ -225,34 +225,34 @@ disp([num2str(sum(eye_cell_amplitude_cell_status == 1)) '/' num2str(length(all_e
 disp([num2str(sum(eye_cell_place_cell_status == 0 & eye_cell_direction_cell_status == 0 & eye_cell_amplitude_cell_status == 0)) '/' num2str(length(all_eye_cell_unit_names)) ' are non-spatial'])
 %%
 
-%---Copy Relevant Figures to Summary Directory---%
-for unit = 1:length(all_eye_cell_unit_names)
-    sub_dir1 = 'List Fixation Analysis\';
-    name1 = [all_eye_cell_unit_names{unit} 'Eye_Locked_analysis_Fixation_Rasters.png'];
-    
-    if eye_cell_place_cell_status(unit) == 1 %place cell
-        if ~exist([summary_directory 'Place\'],'dir')
-            mkdir([summary_directory 'Place\']);
-        end
-        copyfile([figure_dir{all_eye_cell_monkeys(unit)} sub_dir1 name1],...
-            [summary_directory 'Place\' name1])
-    elseif eye_cell_direction_cell_status(unit) == 1 ||  eye_cell_amplitude_cell_status(unit) == 1
-        if ~exist([summary_directory 'Other Spatial\'],'dir')
-            mkdir([summary_directory 'Other Spatial\']);
-        end
-        copyfile([figure_dir{all_eye_cell_monkeys(unit)} sub_dir1 name1],...
-            [summary_directory 'Other Spatial\' name1])
-    elseif eye_cell_place_cell_status(unit) == 0 %non place cell
-        if ~exist([summary_directory 'Non Spatial\'],'dir')
-            mkdir([summary_directory 'Non Spatial\']);
-        end
-        copyfile([figure_dir{all_eye_cell_monkeys(unit)} sub_dir1 name1],...
-            [summary_directory 'Non Spatial\' name1])
-    else
-        error('What')
-    end
-end
-
+% %---Copy Relevant Figures to Summary Directory---%
+% for unit = 1:length(all_eye_cell_unit_names)
+%     sub_dir1 = 'List Fixation Analysis\';
+%     name1 = [all_eye_cell_unit_names{unit} 'Eye_Locked_analysis_Fixation_Rasters.png'];
+%     
+%     if eye_cell_place_cell_status(unit) == 1 %place cell
+%         if ~exist([summary_directory 'Place\'],'dir')
+%             mkdir([summary_directory 'Place\']);
+%         end
+%         copyfile([figure_dir{all_eye_cell_monkeys(unit)} sub_dir1 name1],...
+%             [summary_directory 'Place\' name1])
+%     elseif eye_cell_direction_cell_status(unit) == 1 ||  eye_cell_amplitude_cell_status(unit) == 1
+%         if ~exist([summary_directory 'Other Spatial\'],'dir')
+%             mkdir([summary_directory 'Other Spatial\']);
+%         end
+%         copyfile([figure_dir{all_eye_cell_monkeys(unit)} sub_dir1 name1],...
+%             [summary_directory 'Other Spatial\' name1])
+%     elseif eye_cell_place_cell_status(unit) == 0 %non place cell
+%         if ~exist([summary_directory 'Non Spatial\'],'dir')
+%             mkdir([summary_directory 'Non Spatial\']);
+%         end
+%         copyfile([figure_dir{all_eye_cell_monkeys(unit)} sub_dir1 name1],...
+%             [summary_directory 'Non Spatial\' name1])
+%     else
+%         error('What')
+%     end
+% end
+% 
 %%
 t = -twin1:twin2-1;
 
