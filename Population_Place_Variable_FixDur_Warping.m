@@ -28,8 +28,8 @@ min_num_fixations = 100;
 
 t_start = 50;
 max_fix_dur = 600;
-fix_dur_to_warp_to = 200;
-sac_dur_to_warp_to = 200+50;
+fix_dur_to_warp_to = 180;
+sac_dur_to_warp_to = 180+50;
 median_fixdur = 188;%ms
 median_sacdur = 44;%ms
 

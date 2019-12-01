@@ -48,7 +48,8 @@ cross_fixation_firing_rates = [];%fixation on across
 image_on_firing_rates = []; %image on 1 second window
 long_image_on_firing_rates = [];%image on 5 second window
 image_off_firing_rates = []; %image off
-
+all_spike_times = cell(1,347);
+cell_ind = 1;
 
 monkeys = {'Vivian','Tobii'};
 figure_dir = {};
@@ -60,8 +61,8 @@ for monk =2:-1:1
    if strcmpi(monkey,'Vivian')
         excel_dir = 'P:\eblab\PLX files\Vivian\';
         excel_file = [excel_dir 'Vivian_Recording_Notes-ListSQ.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\PW Recording Files\';
-        figure_dir{1} = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\PW Figures\';
+        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\PW Recording Files\';
+        figure_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\PW Figures\';
         
         %listsq_read_excel(data_dir,excel_file);
         load([data_dir 'Across_Session_Unit_Data_Vivian.mat'])
@@ -72,8 +73,8 @@ for monk =2:-1:1
     elseif strcmpi(monkey,'Tobii')
         excel_dir = 'P:\eblab\PLX files\Tobii\';
         excel_file = [excel_dir 'Tobii_recordingnotes.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\TO Recording Files\';
-        figure_dir{2} = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\TO Figures\';
+        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+        figure_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\TO Figures\';
         
         predict_rt = 135;%ms prediction 5-percentile
         chamber_zero = [7.5 15]; %AP ML, his posertior hippocampus appears slightly shorter/more compressed than atlas
@@ -194,6 +195,13 @@ for monk =2:-1:1
                     visual_response_stats_long = [ visual_response_stats_long 0];%not signficant
                 end
                 
+                %for storing all responses
+                if (epoch_data.rate_prctile(unit,3) > 95) && (epoch_data.temporalstability_prctile(unit,3) > 95) || ...
+                        (epoch_data.rate_prctile(unit,5) > 95) && (epoch_data.temporalstability_prctile(unit,5) > 95)
+                    all_spike_times{cell_ind} = time_lock_firing{unit,5};
+                    cell_ind = cell_ind+1;
+                end
+                
                 %---for image off---%
                 if (epoch_data.rate_prctile(unit,4) > 95) && (epoch_data.temporalstability_prctile(unit,4) > 95)
                     image_off_status = [image_off_status 1];%signficant
@@ -311,75 +319,75 @@ disp([num2str(sum(memory_long == 1 | memory_short == 1)) ' Show a Significant Me
 disp([num2str(sum((memory_long == 1 | memory_short == 1) & (spatialness == 1))) ' Place Cells Show a Significant Memory Response'])
 
 %%
-%---Copy Relevant Figures to Summary Directory---%
-for unit = 1:length(all_unit_names)
-    sub_dir1 = 'Visual Response\';
-    
-    %---Visual responsive neurons according to skaggs and correlation---%
-    name1 = [all_unit_names{unit} '_Image_Visual Response.png'];
-    if visual_response_stats_short(unit) == 1 || visual_response_stats_long(unit) == 1 %visually responsive
-        if spatialness(unit) == 1 %place cell
-            if ~exist([summary_directory 'Place\'],'dir')
-                mkdir([summary_directory 'Place\']);
-            end
-            copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name1],...
-                [summary_directory 'Place\' name1])
-        else %non place cell
-            if ~exist([summary_directory 'Non Place\'],'dir')
-                mkdir([summary_directory 'Non Place\']);
-            end
-            copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name1],...
-                [summary_directory 'Non Place\' name1])
-        end
-    end
-    
-    %---Visual responsive neurons only according to sliding window---%
-    if (visual_response_stats_short(unit) == 0 && visual_response_stats_long(unit) == 0) ...
-            && (visual_response_stats_short_sliding(unit) == 1 || visual_response_stats_long_sliding(unit) == 1)
-        if ~exist([summary_directory 'Sliding Window Only\'],'dir')
-            mkdir([summary_directory 'Sliding Window Only\']);
-        end
-        copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name1],...
-            [summary_directory 'Sliding Window Only\' name1])
-    end
-    
-    %---Fixation on Cross Response---%
-    name2 = [all_unit_names{unit} '_Visual Response_CrossHair.png'];
-    if fixation_on_cross_status(unit) == 1
-        if ~exist([summary_directory 'Cross Response\'],'dir')
-            mkdir([summary_directory 'Cross Response\']);
-        end
-        copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name2],...
-            [summary_directory 'Cross Response\' name2])
-    end
-    
-    %---Image Off Response---%
-    if image_off_status(unit) == 1
-        if ~exist([summary_directory 'Image Off Response\'],'dir')
-            mkdir([summary_directory 'Image Off Response\']);
-        end
-        copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name2],...
-            [summary_directory 'Image Off Response\' name2])
-    end
-    
-    %---Memory Response---%
-    name2 = [all_unit_names{unit} '_Image_Visual Response_Memory.png'];
-    if memory_short(unit) == 1 %memory response within 1 second window
-        if ~exist([summary_directory 'Memory\'],'dir')
-            mkdir([summary_directory 'Memory\']);
-        end
-        copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name2],...
-            [summary_directory 'Memory\' name2])
-    end
-    if memory_long(unit) == 1 %memory response within 1 second window
-        if ~exist([summary_directory 'Memory\'],'dir')
-            mkdir([summary_directory 'Memory\']);
-        end
-        copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name2],...
-            [summary_directory 'Memory\' name2])
-    end
-    
-end
+% %---Copy Relevant Figures to Summary Directory---%
+% for unit = 1:length(all_unit_names)
+%     sub_dir1 = 'Visual Response\';
+%     
+%     %---Visual responsive neurons according to skaggs and correlation---%
+%     name1 = [all_unit_names{unit} '_Image_Visual Response.png'];
+%     if visual_response_stats_short(unit) == 1 || visual_response_stats_long(unit) == 1 %visually responsive
+%         if spatialness(unit) == 1 %place cell
+%             if ~exist([summary_directory 'Place\'],'dir')
+%                 mkdir([summary_directory 'Place\']);
+%             end
+%             copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name1],...
+%                 [summary_directory 'Place\' name1])
+%         else %non place cell
+%             if ~exist([summary_directory 'Non Place\'],'dir')
+%                 mkdir([summary_directory 'Non Place\']);
+%             end
+%             copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name1],...
+%                 [summary_directory 'Non Place\' name1])
+%         end
+%     end
+%     
+%     %---Visual responsive neurons only according to sliding window---%
+%     if (visual_response_stats_short(unit) == 0 && visual_response_stats_long(unit) == 0) ...
+%             && (visual_response_stats_short_sliding(unit) == 1 || visual_response_stats_long_sliding(unit) == 1)
+%         if ~exist([summary_directory 'Sliding Window Only\'],'dir')
+%             mkdir([summary_directory 'Sliding Window Only\']);
+%         end
+%         copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name1],...
+%             [summary_directory 'Sliding Window Only\' name1])
+%     end
+%     
+%     %---Fixation on Cross Response---%
+%     name2 = [all_unit_names{unit} '_Visual Response_CrossHair.png'];
+%     if fixation_on_cross_status(unit) == 1
+%         if ~exist([summary_directory 'Cross Response\'],'dir')
+%             mkdir([summary_directory 'Cross Response\']);
+%         end
+%         copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name2],...
+%             [summary_directory 'Cross Response\' name2])
+%     end
+%     
+%     %---Image Off Response---%
+%     if image_off_status(unit) == 1
+%         if ~exist([summary_directory 'Image Off Response\'],'dir')
+%             mkdir([summary_directory 'Image Off Response\']);
+%         end
+%         copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name2],...
+%             [summary_directory 'Image Off Response\' name2])
+%     end
+%     
+%     %---Memory Response---%
+%     name2 = [all_unit_names{unit} '_Image_Visual Response_Memory.png'];
+%     if memory_short(unit) == 1 %memory response within 1 second window
+%         if ~exist([summary_directory 'Memory\'],'dir')
+%             mkdir([summary_directory 'Memory\']);
+%         end
+%         copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name2],...
+%             [summary_directory 'Memory\' name2])
+%     end
+%     if memory_long(unit) == 1 %memory response within 1 second window
+%         if ~exist([summary_directory 'Memory\'],'dir')
+%             mkdir([summary_directory 'Memory\']);
+%         end
+%         copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name2],...
+%             [summary_directory 'Memory\' name2])
+%     end
+%     
+% end
 %% Peri-Event Time Cell Plots for All Significant Cells Aligned to Max
 figure
 %---Time Cell Plot Fixation on Cross Hair---%
