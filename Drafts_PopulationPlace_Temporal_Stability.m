@@ -301,27 +301,42 @@ observed_peak_corrs = corr(mx1,mx2,'row','pairwise','type','Spearman');
 observed_order_corr = corr(i1,i2,'row','pairwise','type','Spearman');
 observed_order_distance = mean(abs(mx1-mx2));
 
+figure
+plot(mx1-twin1,mx2-twin2,'.k')
+xlabel('Peak Response on Odd Trials (ms)')
+ylabel('Peak Response on Even Trials (ms)')
+box off
+title(['Population-level Peak Correlation (\rho) = ' num2str(observed_peak_corrs,3)])
+
 %%
 figure
 subplot(2,2,1)
-imagesc(firing_rates1(i1,:))
+imagesc(-twin1:twin2-1,1:size(firing_rates1,1),firing_rates1(i1,:))
 caxis([-0.2 1])
 title('Odd Sorted')
+xlabel('Time from Fixation (ms)')
+ylabel('View Cell#')
 
 subplot(2,2,2)
-imagesc(firing_rates2(i2,:))
+imagesc(-twin1:twin2-1,1:size(firing_rates1,1),firing_rates2(i2,:))
 caxis([-0.2 1])
 title('Even Sorted')
+xlabel('Time from Fixation (ms)')
+ylabel('View Cell#')
 
 subplot(2,2,3)
-imagesc(firing_rates1(i2,:))
+imagesc(-twin1:twin2-1,1:size(firing_rates1,1),firing_rates1(i2,:))
 caxis([-0.2 1])
 title('Odd Sorted by Even')
+xlabel('Time from Fixation (ms)')
+ylabel('View Cell#')
 
 subplot(2,2,4)
-imagesc(firing_rates2(i1,:))
+imagesc(-twin1:twin2-1,1:size(firing_rates1,1),firing_rates2(i1,:))
 caxis([-0.2 1])
 title('Even Sorted by Odd')
+xlabel('Time from Fixation (ms)')
+ylabel('View Cell#')
 
 %% Get Distribution of Shuffled Non-Place Cell Orders Correlations
 
@@ -425,3 +440,4 @@ disp(['Median temporal stability: ' num2str(nanmedian(observed_corr50_nonplace),
     'Mean temporal stability: ' num2str(nanmean(observed_corr50_nonplace),3)]);
 disp('-------------------------------------------------------------------------')
 disp(['Shuffled Order Distance percentile: ' num2str(100*sum(observed_order_distance < shuff_order_distance)/num_shuffs,3)])
+disp(['Shuffled Peak Corr percentile: ' num2str(100*sum(observed_peak_corrs > shuff_peak_corrs)/num_shuffs,3)])
