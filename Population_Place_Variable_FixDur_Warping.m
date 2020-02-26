@@ -1,3 +1,5 @@
+%Code cleaned up and re-checked, 2/17/20 after many modification suggestions
+%noted a few minor indexing errors in LFP calculations
 %Code modified from Draft Version in ListSQ on 6/3/19
 %Code determines if spatiotemporal responses are better aligned to
 %fixation/saccade onset in a linear manner or are scaled by
@@ -5,11 +7,12 @@
 
 clar %clear,clc
 
-set(0,'DefaultFigureVisible','OFF');
+%---Figure Options---%
+plot_individual_cells = true;
+set(0,'DefaultFigureVisible','ON');
 figure_dir2 = 'C:\Users\seth.koenig\Desktop\New folder\';
 
-cutoff_short_fixations = true;
-
+%---Import Options---%
 task = 'ListSQ';
 min_blks = 2; %only anaedlyzes units with at least 2 novel/repeat blocks (any block/parts of blocks)
 Fs = 1000; %Hz sampling frequency
@@ -19,20 +22,6 @@ img_on_code = 23; %cortex code when image turns on
 img_off_code = 24; %cortex code when image turns off
 ITIstart_code = 15; %start of ITI/trial
 
-min_fix_dur = 100; %100 ms %don't want fixations that are too short since won't get a good idea of firing pattern
-min_sac_amp = 48;%48 pixels = 2 dva don't want mini/micro saccades too small and hard to detect
-
-min_saccades_with_spikes = 0.05;% 5% to remove neurons that have basically no activity since they pass too :(...
-%essentially 0.4 Hz threshold if window is 50 ms in wide
-min_num_fixations = 100;
-
-t_start = 50;
-max_fix_dur = 600;
-fix_dur_to_warp_to = 180;
-sac_dur_to_warp_to = 180+50;
-median_fixdur = 188;%ms
-median_sacdur = 44;%ms
-
 Fs = 1000; %Hz sampling frequency
 fixwin = 5;%size of fixation window on each crosshair
 smval = 30;%2*std of gaussian kernel so 15 ms standard deviation
@@ -41,24 +30,43 @@ twin1 = 200;%200 ms before fixation
 twin2 = 400;%400 ms after start of fixation
 image_on_twin = 500;%how much time to ignore eye movements for to remove strong visual response though some may last longer
 
-monkey_all_unit_count = zeros(2,2);%row 1 place row 2 non-place, column by monkey
+%---Fixation/Saccade Duration parameters---%
+cutoff_short_fixations = true; %cutt off spikes after fixation has ended 
 
+min_saccades_with_spikes = 0.05;% 5% to remove neurons that have basically no activity since they pass too :(...
+%essentially 0.4 Hz threshold if window is 50 ms in wide
+min_num_fixations = 100;
+
+min_fix_dur = 100; %100 ms %don't want fixations that are too short since won't get a good idea of firing pattern
+min_sac_amp = 48;%48 pixels = 2 dva don't want mini/micro saccades too small and hard to detect
+
+t_start = 50; %time before fixation to include in information score calculation, this period is not warped
+max_fix_dur = 600;%max fixation duration to warp, shouldn't be to many but could include 2nd minisaccades
+fix_dur_to_warp_to = 180;%1 ms/degree of phase @ 180 ms, close to median fix dur of 188
+
+
+%---Storage Variables---%
+%resampling expected to lead to no change in firing rate, while scaling
+%make cause changes in firing rate due to longtail fixation duration distribution
 %Unwarped and Warped x out2in and all fixations
 %row 1, ou2in raw
 %row 2, out2in warped
 %row 3, all raw
 %row 4, all warped
-fixation_skagg_info_raw_warped = NaN(4,110);
-saccade_skagg_info_raw_warped = NaN(4,110);
-fixation_LFP_skagg_info_raw_warped = NaN(2,350);
-saccade_LFP_skagg_info_raw_warped = NaN(2,350);
+fixation_skagg_info_raw_resampled = NaN(4,110);%fixation linear-spaced up & down sampling
+fixation_LFP_skagg_info_raw_resampled = NaN(2,350);%LFP linear-spaced up & down sampling
+fixation_skagg_info_raw_scaled = NaN(4,110); %fixation time stamp scaling
 
-%determine if "firing" rate has changed
-fixation_average_firing_rate = NaN(4,110);
-saccade_average_firing_rate = NaN(4,110);
-fixation_LFP_amplitude = NaN(2,350);
-saccade_LFP_firing_rate = NaN(2,350);
 
+%determine if firing rate or amplitude has changed with scaling organized as above
+%for before/after warping
+fixation_average_firing_rate_resampled = NaN(4,110);%firing rates for resampling
+fixation_LFP_amplitude_resampled = NaN(2,350);%LFP amplitudes for resampling
+fixation_average_firing_rate_scaled = NaN(4,110);%firing rates for scaling
+
+
+
+%----Main Script---%
 %timing variables that are the same for all
 t11 = -twin1:fix_dur_to_warp_to-1;
 total_time = 1:fix_dur_to_warp_to+t_start+1;
@@ -186,6 +194,9 @@ for monk =2:-1:1
                 continue
             end
             
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+            %%%---Process Spike Data---%%%
+            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             if (spatial_info.shuffled_rate_prctile(unit) > 95) ... %skagg 95%+
                     && (spatial_info.spatialstability_halves_prctile(unit) > 95) %spatial stability
                 
@@ -202,13 +213,18 @@ for monk =2:-1:1
                 %3) first fixation out of field: in -> out
                 %4) fixation out of field but not first: out-> out
                 
+                %out2in fixations only
                 out2in_fix_dur = NaN(1,1000);
-                fix_locked_firing = NaN(1000,(twin1+fix_dur_to_warp_to)); %spike trains locked to fixations
-                fix_locked_firing_warped = NaN(1000,(twin1+fix_dur_to_warp_to)); %spike trains locked to fixations
+                fix_locked_firing_raw = NaN(1000,(twin1+fix_dur_to_warp_to)); %spike trains locked to fixations, unwarped
+                fix_locked_firing_resampled = NaN(1000,(twin1+fix_dur_to_warp_to)); %resampled spike trains locked to fixations
+                fix_locked_firing_scaled = NaN(1000,(twin1+fix_dur_to_warp_to)); %scaled spike trains locked to fixations
                 
+                %all fixations
                 all_fix_dur = NaN(1,5000);
-                all_fix_locked_firing = NaN(5000,(twin1+fix_dur_to_warp_to)); %spike trains locked to fixations
-                all_fix_locked_firing_warped = NaN(5000,(twin1+fix_dur_to_warp_to)); %spike trains locked to fixations
+                all_fix_locked_firing_raw = NaN(5000,(twin1+fix_dur_to_warp_to)); %all spike trains locked to fixations
+                all_fix_locked_firing_resampled = NaN(5000,(twin1+fix_dur_to_warp_to));%resampled spike trains locked to fixations
+                all_fix_locked_firing_scaled = NaN(5000,(twin1+fix_dur_to_warp_to));  %scaled spike trains locked to fixations
+                
                 
                 fix_ind = 1; %fixation # so can track in variables above
                 all_fix_ind = 1; %fixation # so can track in variables above
@@ -279,6 +295,7 @@ for monk =2:-1:1
                             
                             spikes = find(data(unit).values{t}); %spike trains for this trial
                             for f = 2:size(fixations,2)%ignore first fixation not sure where it was/possibly contaminated anyway
+                                fixt = fixationtimes(1,f);%start of fixation
                                 fixdur = fixationtimes(2,f)-fixationtimes(1,f);
                                 prior_sac = find(saccadetimes(2,:) == fixationtimes(1,f)-1);%next fixation should start immediately after
                                 if isempty(prior_sac) %no prior saccade so was proabbly looking off screen
@@ -288,8 +305,6 @@ for monk =2:-1:1
                                 if sacamp < min_sac_amp %prior saccade is too small so ignore
                                     continue
                                 end
-                                
-                                all_fix_dur(all_fix_ind) = fixdur;
                                 
                                 prior_fix_in_out = NaN;
                                 %determine if prior fixation was in or out of place field
@@ -333,8 +348,12 @@ for monk =2:-1:1
                                 
                                 %---For Out2In Fixations Only---%
                                 if fix_in_out(fix_ind) == 1 %out2in
+                                    %clear temp varaibles just in case...should've renamed these
+                                    temp = [];
+                                    temp2 = [];
+                                    temp3 = [];
+                                    
                                     %get firing rate locked to fixation
-                                    fixt = fixationtimes(1,f);%start of fixation
                                     fix_spikes = spikes(spikes > fixt-twin1 & spikes <= fixt+fix_dur_to_warp_to)-fixt+twin1;
                                     temp = zeros(1,twin1+fix_dur_to_warp_to);
                                     temp(fix_spikes) = 1;
@@ -342,25 +361,40 @@ for monk =2:-1:1
                                         remaining = fix_dur_to_warp_to-fixdur;
                                         temp(end-remaining+1:end) = NaN;
                                     end
-                                    fix_locked_firing(fix_ind,:) = temp;
+                                    fix_locked_firing_raw(fix_ind,:) = temp;
                                     
                                     if fixdur == fix_dur_to_warp_to
-                                        fix_locked_firing_warped(fix_ind,:) = temp;
+                                        fix_locked_firing_resampled(fix_ind,:) = temp;
+                                        fix_locked_firing_scaled(fix_ind,:) = temp;
                                     else
-                                        fix_locked_firing_warped(fix_ind,1:twin1) = temp(1:twin1);
+                                        fix_locked_firing_resampled(fix_ind,1:twin1) = temp(1:twin1);
+                                        fix_locked_firing_scaled(fix_ind,1:twin1) = temp(1:twin1);
+                                        
+                                        %resampling
                                         fix_spikes2 = spikes(spikes > fixt & spikes <= fixt + fixdur)-fixt;
                                         temp2 = zeros(1,fixdur);
                                         temp2(fix_spikes2) = 1;
                                         resampled = round(linspace(1,fixdur,fix_dur_to_warp_to));
                                         temp2 = temp2(resampled);
-                                        fix_locked_firing_warped(fix_ind,twin1+1:end) = temp2;
+                                        fix_locked_firing_resampled(fix_ind,twin1+1:end) = temp2;
+                                        
+                                        %scaling
+                                        fix_spikes2_scaled = round(fix_spikes2*fix_dur_to_warp_to/fixdur);
+                                        fix_spikes2_scaled(fix_spikes2_scaled == 0) = [];
+                                        fix_spikes2_scaled(fix_spikes2_scaled > fix_dur_to_warp_to) = [];
+                                        temp3 = zeros(1,fix_dur_to_warp_to);
+                                        temp3(fix_spikes2_scaled) = 1;
+                                        fix_locked_firing_scaled(fix_ind,twin1+1:end) = temp3;
                                     end
                                     out2in_fix_dur(fix_ind) = fixdur;
                                     fix_ind = fix_ind+1;
                                 end
                                 
                                 %---For All Fixations---%
-                                fixt = fixationtimes(1,f);%start of fixation
+                                %clear temp varaibles just in case...should've renamed these
+                                temp = [];
+                                temp2 = [];
+                                temp3 = [];
                                 fix_spikes = spikes(spikes > fixt-twin1 & spikes <= fixt+fix_dur_to_warp_to)-fixt+twin1;
                                 temp = zeros(1,twin1+fix_dur_to_warp_to);
                                 temp(fix_spikes) = 1;
@@ -368,84 +402,81 @@ for monk =2:-1:1
                                     remaining = fix_dur_to_warp_to-fixdur;
                                     temp(end-remaining+1:end) = NaN;
                                 end
-                                all_fix_locked_firing(all_fix_ind,:) = temp;
+                                all_fix_locked_firing_raw(all_fix_ind,:) = temp;
                                 
                                 if fixdur == fix_dur_to_warp_to
-                                    all_fix_locked_firing_warped(all_fix_ind,:) = temp;
+                                    all_fix_locked_firing_resampled(all_fix_ind,:) = temp;
+                                    all_fix_locked_firing_scaled(all_fix_ind,:) = temp;
                                 else
-                                    all_fix_locked_firing_warped(all_fix_ind,1:twin1) = temp(1:twin1);
+                                    all_fix_locked_firing_resampled(all_fix_ind,1:twin1) = temp(1:twin1);
+                                    all_fix_locked_firing_scaled(all_fix_ind,1:twin1) = temp(1:twin1);
+                                    
+                                    %resampling
                                     fix_spikes2 = spikes(spikes > fixt & spikes <= fixt + fixdur)-fixt;
                                     temp2 = zeros(1,fixdur);
                                     temp2(fix_spikes2) = 1;
                                     resampled = round(linspace(1,fixdur,fix_dur_to_warp_to));
                                     temp2 = temp2(resampled);
-                                    all_fix_locked_firing_warped(all_fix_ind,twin1+1:end) = temp2;
+                                    all_fix_locked_firing_resampled(all_fix_ind,twin1+1:end) = temp2;
+                                    
+                                    %scaling
+                                    all_fix_spikes2_scaled = round(fix_spikes2*fix_dur_to_warp_to/fixdur);
+                                    all_fix_spikes2_scaled(all_fix_spikes2_scaled == 0) = [];
+                                    all_fix_spikes2_scaled(all_fix_spikes2_scaled > fix_dur_to_warp_to) = [];
+                                    temp3 = zeros(1,fix_dur_to_warp_to);
+                                    temp3(all_fix_spikes2_scaled) = 1;
+                                    all_fix_locked_firing_scaled(all_fix_ind,twin1+1:end) = temp3;
+                                    
+                                    if abs(sum(temp3)-length(fix_spikes2)) > 2 %2 for rounding cuz could loose 1st and last spikes
+                                        disp('now')
+                                    end
                                 end
-                                
+                                all_fix_dur(all_fix_ind) = fixdur;
                                 all_fix_ind = all_fix_ind+1; %fixation # so can track in variables above
-                                
                             end
                         end
                     end
                 end
-                %%
-                %remove excess NaNs
-                out2in_fix_dur = laundry(out2in_fix_dur);
-                fix_locked_firing = laundry(fix_locked_firing);
-                fix_locked_firing_warped = laundry(fix_locked_firing_warped);
-                %% 
                 
-                all_fix_locked_firing = laundry(all_fix_locked_firing);
-                all_fix_locked_firing_warped = laundry(all_fix_locked_firing_warped);
+                %---Remove excess NaNs---%
+                out2in_fix_dur = laundry(out2in_fix_dur);
+                fix_locked_firing_raw = laundry(fix_locked_firing_raw);
+                fix_locked_firing_resampled = laundry(fix_locked_firing_resampled);
+                fix_locked_firing_scaled = laundry(fix_locked_firing_scaled);
+                                
+                all_fix_locked_firing_raw = laundry(all_fix_locked_firing_raw);
+                all_fix_locked_firing_resampled = laundry(all_fix_locked_firing_resampled);
+                all_fix_locked_firing_scaled = laundry(all_fix_locked_firing_scaled);
                 all_fix_dur = laundry(all_fix_dur);
                 
                 
-                %%
                 %--Determine if should NOT process Data do to sparse sampling---%
-                spike_counts = nansum(fix_locked_firing(:,twin1-t_start+1:end));
-                if sum(spike_counts > 0) < min_saccades_with_spikes*size(fix_locked_firing,1) || ...
-                        min_num_fixations > size(fix_locked_firing,1)
+                spike_counts_out2in = nansum(fix_locked_firing_raw(:,twin1-t_start+1:end));
+                if sum(spike_counts_out2in > 0) < min_saccades_with_spikes*size(fix_locked_firing_raw,1) || ...
+                        min_num_fixations > size(fix_locked_firing_raw,1)
                     process_out2in = false;
                 else
-                     process_out2in = true;
+                    process_out2in = true;
                 end
                 
-                spike_counts = nansum(all_fix_locked_firing(:,twin1-t_start+1:end));
-                if sum(spike_counts > 0) < min_saccades_with_spikes*size(all_fix_locked_firing,1) || ...
-                        min_num_fixations > size(all_fix_locked_firing,1)
+                spike_counts_all = nansum(all_fix_locked_firing_raw(:,twin1-t_start+1:end));
+                if sum(spike_counts_all > 0) < min_saccades_with_spikes*size(all_fix_locked_firing_raw,1) || ...
+                        min_num_fixations > size(all_fix_locked_firing_raw,1)
                     process_all = false;
                 else
-                     process_all = true;
+                    process_all = true;
                 end
-                
-                %%
-                figure
-                
-                [s,si] = sort(out2in_fix_dur);
-                fix_locked_firing = fix_locked_firing(si,:);
-                [trial,time] = find(fix_locked_firing == 1);
-                fix_locked_firing_warped = fix_locked_firing_warped(si,:);
-                [trialw,timew] = find(fix_locked_firing_warped == 1);
-                
-                subplot(2,2,1)
-                plot(time-twin1,trial,'.k')
-                hold on
-                plot(timew-twin1,trialw+max(trial),'.b')
-                hold off
-                ylim([0 max(trialw) + max(trial)])
-                xlabel('Time from Fixation Start (ms)')
-                ylabel('Fixation #')
-                title('Rasters for Out2In Only')
-                box off
-                
-                
-                if  process_out2in              
+                  
+                %---Calculate Temporal Information for Raw & Warped Data---%
+                if  process_out2in
                     if cutoff_short_fixations
-                        yraw = nandens3(fix_locked_firing(:,twin1-50:end),smval,Fs);
-                        ywarped = nandens3(fix_locked_firing_warped(:,twin1-50:end),smval,Fs);
+                        yraw = nandens3(fix_locked_firing_raw(:,twin1-50:end),smval,Fs);
+                        yresampled = nandens3(fix_locked_firing_resampled(:,twin1-50:end),smval,Fs);
+                        yscaled = nandens3(fix_locked_firing_scaled(:,twin1-50:end),smval,Fs);
                     else
-                        yraw = nandens(fix_locked_firing(:,twin1-50:end),smval,'gauss',Fs,'nanflt');
-                        ywarped = nandens(fix_locked_firing_warped(:,twin1-50:end),smval,'gauss',Fs,'nanflt');
+                        yraw = nandens(fix_locked_firing_raw(:,twin1-50:end),smval,'gauss',Fs,'nanflt');
+                        yresampled = nandens(fix_locked_firing_resampled(:,twin1-50:end),smval,'gauss',Fs,'nanflt');
+                        yscaled = nandens(fix_locked_firing_scaled(:,twin1-50:end),smval,'gauss',Fs,'nanflt');
                     end
                     
                     lambda_x = yraw;
@@ -453,115 +484,174 @@ for monk =2:-1:1
                     plogp = lambda_x.*log2(lambda_x/lambda);
                     raw_skaggs = nansum(nansum(plogp.*p_x)); %bits/second
                     
-                    lambda_x = ywarped;
+                    lambda_x = yresampled;
                     lambda = nansum(nansum(lambda_x.*p_x));
                     plogp = lambda_x.*log2(lambda_x/lambda);
-                    warped_skaggs = nansum(nansum(plogp.*p_x)); %bits/second
+                    resampled_skaggs = nansum(nansum(plogp.*p_x)); %bits/second
                     
+                    lambda_x = yscaled;
+                    lambda = nansum(nansum(lambda_x.*p_x));
+                    plogp = lambda_x.*log2(lambda_x/lambda);
+                    scaled_skaggs = nansum(nansum(plogp.*p_x)); %bits/second
                     
-                    fixation_skagg_info_raw_warped(1,cell_ind) = raw_skaggs;
-                    fixation_skagg_info_raw_warped(2,cell_ind) = warped_skaggs;
+                    fixation_skagg_info_raw_resampled(1,cell_ind) = raw_skaggs;
+                    fixation_skagg_info_raw_resampled(2,cell_ind) = resampled_skaggs;
                     
-                    fixation_average_firing_rate(1,cell_ind) = mean(yraw(twin1-t_start+1:end));
-                    fixation_average_firing_rate(2,cell_ind) = mean(ywarped(twin1-t_start+1:end));
-                end
-                
-%                 if (fixation_skagg_info_raw_warped(2,cell_ind)-fixation_skagg_info_raw_warped(1,cell_ind))/...
-%                         fixation_skagg_info_raw_warped(1,cell_ind) > 1
-%                     disp('now')
-%                 end
-                
-                subplot(2,2,2)
-                hold on
-                if cutoff_short_fixations
-                    dofill2(t11,fix_locked_firing,'black',1,smval);
-                    dofill2(t11,fix_locked_firing_warped,'blue',1,smval);
-                else
-                    dofill(t11,fix_locked_firing,'black',1,smval);
-                    dofill(t11,fix_locked_firing_warped,'blue',1,smval);
-                end
-                hold off
-                ylabel('Firing Rate (Hz)')
-                xlabel('Time from Fixation Start (ms)')
-                xlim([-twin1 twin1])
-                %title(['Out2In Only: Raw_{skaggs} = ' num2str(raw_skaggs,3) ', Warped_{skaggs} = ' num2str(warped_skaggs,3)])
-                p_change = 100*(warped_skaggs-raw_skaggs)/raw_skaggs;
-                title(['Out2In Only: ' num2str(p_change,3) '% Change'])
-                legend('Raw','Warped')
-                
-                [s,si] = sort(all_fix_dur);
-                all_fix_locked_firing = all_fix_locked_firing(si,:);
-                [trial,time] = find(all_fix_locked_firing == 1);
-                all_fix_locked_firing_warped = all_fix_locked_firing_warped(si,:);
-                [trialw,timew] = find(all_fix_locked_firing_warped == 1);
-                
-                subplot(2,2,3)
-                plot(time-twin1,trial,'.k')
-                hold on
-                plot(timew-twin1,trialw+max(trial),'.b')
-                hold off
-                ylim([0 max(trialw) + max(trial)])
-                xlabel('Time from Fixation Start (ms)')
-                ylabel('Fixation #')
-                title('Rasters for All Fixations, sorted by fixation duration')
-                box off
-                
-                if cutoff_short_fixations
-                    yraw = nandens3(all_fix_locked_firing(:,twin1-50:end),smval,Fs);%'gauss',Fs,'nanflt');
-                    ywarped = nandens3(all_fix_locked_firing_warped(:,twin1-50:end),smval,Fs);%'gauss',Fs,'nanflt');
-                else
-                    yraw = nandens(all_fix_locked_firing(:,twin1-50:end),smval,'gauss',Fs,'nanflt');
-                    ywarped = nandens(all_fix_locked_firing_warped(:,twin1-50:end),smval,'gauss',Fs,'nanflt');
+                    fixation_skagg_info_raw_scaled(1,cell_ind) = raw_skaggs;
+                    fixation_skagg_info_raw_scaled(2,cell_ind) = scaled_skaggs;
+                    
+                    fixation_average_firing_rate_resampled(1,cell_ind) = mean(yraw(twin1-t_start+1:end));
+                    fixation_average_firing_rate_resampled(2,cell_ind) = mean(yresampled(twin1-t_start+1:end));
+                    
+                    fixation_average_firing_rate_scaled(1,cell_ind) = mean(yraw(twin1-t_start+1:end));
+                    fixation_average_firing_rate_scaled(2,cell_ind) = mean(yscaled(twin1-t_start+1:end));
                 end
                 
                 if  process_all
+                    if cutoff_short_fixations
+                        yraw = nandens3(all_fix_locked_firing_raw(:,twin1-50:end),smval,Fs);%'gauss',Fs,'nanflt');
+                        yresampled = nandens3(all_fix_locked_firing_resampled(:,twin1-50:end),smval,Fs);%'gauss',Fs,'nanflt');
+                        yscaled = nandens3(all_fix_locked_firing_scaled(:,twin1-50:end),smval,Fs);%'gauss',Fs,'nanflt');
+                    else
+                        yraw = nandens(all_fix_locked_firing_raw(:,twin1-50:end),smval,'gauss',Fs,'nanflt');
+                        yresampled = nandens(all_fix_locked_firing_resampled(:,twin1-50:end),smval,'gauss',Fs,'nanflt');
+                        yscaled = nandens(all_fix_locked_firing_scaled(:,twin1-50:end),smval,'gauss',Fs,'nanflt');
+                    end
+                    
                     lambda_x = yraw;
                     lambda = nansum(nansum(lambda_x.*p_x));
                     plogp = lambda_x.*log2(lambda_x/lambda);
                     raw_skaggs = nansum(nansum(plogp.*p_x)); %bits/second
                     
-                    lambda_x = ywarped;
+                    lambda_x = yresampled;
                     lambda = nansum(nansum(lambda_x.*p_x));
                     plogp = lambda_x.*log2(lambda_x/lambda);
-                    warped_skaggs = nansum(nansum(plogp.*p_x)); %bits/second
+                    resampled_skaggs = nansum(nansum(plogp.*p_x)); %bits/second
                     
-                    fixation_skagg_info_raw_warped(3,cell_ind) = raw_skaggs;
-                    fixation_skagg_info_raw_warped(4,cell_ind) = warped_skaggs;
+                    lambda_x = yscaled;
+                    lambda = nansum(nansum(lambda_x.*p_x));
+                    plogp = lambda_x.*log2(lambda_x/lambda);
+                    scaled_skaggs = nansum(nansum(plogp.*p_x)); %bits/second
                     
-                    fixation_average_firing_rate(3,cell_ind) = mean(yraw(twin1-t_start+1:end));
-                    fixation_average_firing_rate(4,cell_ind) = mean(ywarped(twin1-t_start+1:end));
+                    
+                    fixation_skagg_info_raw_resampled(3,cell_ind) = raw_skaggs;
+                    fixation_skagg_info_raw_resampled(4,cell_ind) = resampled_skaggs;
+                    
+                    fixation_skagg_info_raw_scaled(3,cell_ind) = raw_skaggs;
+                    fixation_skagg_info_raw_scaled(4,cell_ind) = scaled_skaggs;
+                    
+                    fixation_average_firing_rate_resampled(3,cell_ind) = mean(yraw(twin1-t_start+1:end));
+                    fixation_average_firing_rate_resampled(4,cell_ind) = mean(yresampled(twin1-t_start+1:end));
+                    
+                    fixation_average_firing_rate_scaled(3,cell_ind) = mean(yraw(twin1-t_start+1:end));
+                    fixation_average_firing_rate_scaled(4,cell_ind) = mean(yscaled(twin1-t_start+1:end));
                 end
-                
-                subplot(2,2,4)
-                hold on
-                if cutoff_short_fixations
-                    dofill2(t11,all_fix_locked_firing,'black',1,smval);
-                    dofill2(t11,all_fix_locked_firing_warped,'blue',1,smval);
-                else
-                    dofill(t11,all_fix_locked_firing,'black',1,smval);
-                    dofill(t11,all_fix_locked_firing_warped,'blue',1,smval);
+
+                %%%---Plot Indivisual Cells---%%%
+                if plot_individual_cells
+                    %%
+                    figure
+                    
+                    [~,si] = sort(out2in_fix_dur);
+                    fix_locked_firing_raw = fix_locked_firing_raw(si,:);
+                    [trial,time] = find(fix_locked_firing_raw == 1);
+                    fix_locked_firing_resampled = fix_locked_firing_resampled(si,:);
+                    [trialw,timew] = find(fix_locked_firing_resampled == 1);
+                    
+                    fix_locked_firing_scaled = fix_locked_firing_scaled(si,:);
+                    [trials,times] = find(fix_locked_firing_scaled == 1);
+                    
+                    subplot(2,2,1)
+                    plot(time-twin1,trial,'.k')
+                    hold on
+                    plot(timew-twin1,trialw+max(trial),'.b')
+                    plot(times-twin1,trials+max(trial)+max(trialw),'.r')
+                    hold off
+                    ylim([0 max(trialw) + max(trial) + max(trials)])
+                    xlabel('Time from Fixation Start (ms)')
+                    ylabel('Fixation #')
+                    title('Rasters for Out2In Only')
+                    box off
+                    
+                    subplot(2,2,2)
+                    hold on
+                    if cutoff_short_fixations
+                        dofill2(t11,fix_locked_firing_raw,'black',1,smval);
+                        dofill2(t11,fix_locked_firing_resampled,'blue',1,smval);
+                        dofill2(t11,fix_locked_firing_scaled,'red',1,smval);
+                    else
+                        dofill(t11,fix_locked_firing_raw,'black',1,smval);
+                        dofill(t11,fix_locked_firing_resampled,'blue',1,smval);
+                        dofill(t11,fix_locked_firing_resampled,'sampled',1,smval);
+                    end
+                    hold off
+                    ylabel('Firing Rate (Hz)')
+                    xlabel('Time from Fixation Start (ms)')
+                    xlim([-twin1 twin1])
+                    p_change_resample = 100*(fixation_skagg_info_raw_resampled(2,cell_ind)...
+                        -fixation_skagg_info_raw_resampled(1,cell_ind))/fixation_skagg_info_raw_resampled(1,cell_ind);
+                    p_change_scaled = 100*(fixation_skagg_info_raw_scaled(2,cell_ind)...
+                        -fixation_skagg_info_raw_scaled(1,cell_ind))/fixation_skagg_info_raw_scaled(1,cell_ind);
+                    title(['Out2In Only: \Delta Rescaled = ' num2str(p_change_resample,3) '% ' ...
+                        '\Delta Scaled = ' num2str(p_change_scaled,3) '%'])
+                    legend('Raw','Resampled','Scaled')
+                    
+                    [~,si] = sort(all_fix_dur);
+                    all_fix_locked_firing_raw = all_fix_locked_firing_raw(si,:);
+                    [trial,time] = find(all_fix_locked_firing_raw == 1);
+                    all_fix_locked_firing_resampled = all_fix_locked_firing_resampled(si,:);
+                    [trialw,timew] = find(all_fix_locked_firing_resampled == 1);
+                    all_fix_locked_firing_scaled = all_fix_locked_firing_scaled(si,:);
+                    [trials,times] = find(all_fix_locked_firing_scaled == 1);
+                    
+                    subplot(2,2,3)
+                    plot(time-twin1,trial,'.k')
+                    hold on
+                    plot(timew-twin1,trialw+max(trial),'.b')
+                    plot(times-twin1,trials+max(trial)+max(trialw),'.r')
+                    hold off
+                    ylim([0 max(trialw) + max(trial) + max(trials)])
+                    xlabel('Time from Fixation Start (ms)')
+                    ylabel('Fixation #')
+                    title('Rasters for All Fixations, sorted by fixation duration')
+                    box off
+                    
+                    subplot(2,2,4)
+                    hold on
+                    if cutoff_short_fixations
+                        dofill2(t11,all_fix_locked_firing_raw,'black',1,smval);
+                        dofill2(t11,all_fix_locked_firing_resampled,'blue',1,smval);
+                        dofill2(t11,all_fix_locked_firing_scaled,'red',1,smval);
+                    else
+                        dofill(t11,all_fix_locked_firing_raw,'black',1,smval);
+                        dofill(t11,all_fix_locked_firing_resampled,'blue',1,smval);
+                        dofill(t11,all_fix_locked_firing_resampled,'red',1,smval);
+                    end
+                    hold off
+                    ylabel('Firing Rate (Hz)')
+                    xlabel('Time from Fixation Start (ms)')
+                    xlim([-twin1 twin1])
+                    p_change_resample = 100*(fixation_skagg_info_raw_resampled(4,cell_ind)...
+                        -fixation_skagg_info_raw_resampled(3,cell_ind))/fixation_skagg_info_raw_resampled(3,cell_ind);
+                    p_change_scaled = 100*(fixation_skagg_info_raw_scaled(4,cell_ind)...
+                        -fixation_skagg_info_raw_scaled(3,cell_ind))/fixation_skagg_info_raw_scaled(3,cell_ind);
+                    title(['All Fixations: \Delta Rescaled = ' num2str(p_change_resample,3) '% ' ...
+                        '\Delta Scaled = ' num2str(p_change_scaled,3) '%'])
+                    
+                    subtitle([task_file(1:end-11) '_' unit_stats{1,unit}])
+                    %%
+                    save_and_close_fig(figure_dir2,[task_file(1:end-11) '_' unit_stats{1,unit} '_view_cell_fixation_time_warping']);
                 end
-                hold off
-                ylabel('Firing Rate (Hz)')
-                xlabel('Time from Fixation Start (ms)')
-                xlim([-twin1 twin1])
-                %title(['All fixations: Raw_{skaggs} = ' num2str(raw_skaggs,3) ', Warped_{skaggs} = ' num2str(warped_skaggs,3)])
-                p_change2 = 100*(warped_skaggs-raw_skaggs)/raw_skaggs;
-                title(['All Fixations: ' num2str(p_change2,3) '% Change'])
-                
-                subtitle([task_file(1:end-11) '_' unit_stats{1,unit}])
-                %                 if p_change > 100 || p_change2 > 100
-                %                     disp('Big Change')
-                %                 end
-                %%
-                save_and_close_fig(figure_dir2,[task_file(1:end-11) '_' unit_stats{1,unit} '_view_cell_fixation_time_warping']);
-                %%
                 cell_ind = cell_ind +1;
             else
                 continue
             end
         end
         
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %%%---Process LFP Data---%%%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %seperate from spikes because importing "all" LPF channels
         %remove bad LFP channels
         LFPchannels = find_desired_channels(cfg,'LFP');
         bad_channels = [];
@@ -581,14 +671,14 @@ for monk =2:-1:1
             if ~isnan(LFPchannels(chan))
                 %only do all fixations since no out2in
                 fix_LFP = NaN(5000,(twin1+fix_dur_to_warp_to)); %spike trains locked to fixations
-                fix_LFP_warped = NaN(5000,(twin1+fix_dur_to_warp_to)); %spike trains locked to fixations
+                fix_LFP_resampled = NaN(5000,(twin1+fix_dur_to_warp_to)); %spike trains locked to fixations
                 all_LFP_fixdur = NaN(1,5000);
                 fix_ind = 1; %fixation # so can track in variables above
                 
                 %calculate RMS on trial by trials since interferes ruins
                 %amplitude measurements
                 fix_LFP_RMS = NaN(1,5000);
-                fix_LFP_RMS_warped  = NaN(1,5000);
+                fix_LFP_RMS_resampled  = NaN(1,5000);
                 
                 fixationstats = absolute_fixationstats; %reload because written over below
                 cfg = absolute_cfg; %reload because written over below
@@ -650,6 +740,7 @@ for monk =2:-1:1
                         
                         LFPs = data(LFPchannels(chan)).values{t};
                         for f = 2:size(fixations,2)%ignore first fixation not sure where it was/possibly contaminated anyway
+                            fixt = fixationtimes(1,f);%start of fixation
                             fixdur = fixationtimes(2,f)-fixationtimes(1,f);
                             prior_sac = find(saccadetimes(2,:) == fixationtimes(1,f)-1);%next fixation should start immediately after
                             if isempty(prior_sac) %no prior saccade so was proabbly looking off screen
@@ -659,107 +750,105 @@ for monk =2:-1:1
                             if sacamp < min_sac_amp %prior saccade is too small so ignore
                                 continue
                             end
-                            
-                            all_LFP_fixdur(fix_ind) = fixdur;
-                            
+                                                        
                             %get firing rate locked to fixation
-                            fixt = fixationtimes(1,f);%start of fixation
-                            fixLFP = LFPs(fixt-twin1+1:fixt+fix_dur_to_warp_to);
+                            this_fixLFP = LFPs(fixt-twin1+1:fixt+fix_dur_to_warp_to);
                             if fixdur < fix_dur_to_warp_to && cutoff_short_fixations
                                 remaining = fix_dur_to_warp_to-fixdur;
-                                temp(end-remaining+1:end) = NaN;
+                                this_fixLFP(end-remaining+1:end) = NaN;
                             end
-                            fix_LFP(fix_ind,:) = fixLFP;
-                            
-                            fix_LFP_RMS(fix_ind) = sqrt(sum((fixLFP(twin1-t_start+1:end)).^2));
+                            fix_LFP(fix_ind,:) = this_fixLFP;
+                            fix_LFP_RMS(fix_ind) = sqrt(nansum((this_fixLFP(twin1-t_start+1:end)).^2));
+
+                                
                             
                             if fixdur == fix_dur_to_warp_to
-                                fix_LFP_warped(fix_ind,:) = fixLFP;
+                                fix_LFP_resampled(fix_ind,:) = this_fixLFP;
                             else
+                                %resampling
                                 temp = NaN(1,twin1+fix_dur_to_warp_to);
-                                temp(1:twin1) = fixLFP(1:twin1);
+                                temp(1:twin1) = this_fixLFP(1:twin1);
                                 temp2 = LFPs(fixt+1:fixt+fixdur);
                                 resampled = round(linspace(1,fixdur,fix_dur_to_warp_to));
                                 temp2 = temp2(resampled);
                                 temp(twin1+1:end) = temp2;
-                                fix_LFP_warped(fix_ind,:) = temp;
-                                
-                                fix_LFP_RMS_warped(fix_ind) = sqrt(sum((temp(twin1-t_start+1:end)).^2));
+                                fix_LFP_resampled(fix_ind,:) = temp;           
                             end
+                            fix_LFP_RMS_resampled(fix_ind) = sqrt(nansum((temp(twin1-t_start+1:end)).^2));
+
+                            all_LFP_fixdur(fix_ind) = fixdur;
                             fix_ind = fix_ind+1;
                         end
                     end
                 end
                 
+                %---Remove Excess NaNs---%
                 fix_LFP = laundry(fix_LFP);
-                fix_LFP_warped = laundry(fix_LFP_warped);
+                fix_LFP_resampled = laundry(fix_LFP_resampled);
                 all_LFP_fixdur = laundry(all_LFP_fixdur);
                 
-                %%
-                [s,si] = sort(all_LFP_fixdur);
-                fix_LFP = fix_LFP(si,:);
-                fix_LFP_warped(si,:);
-                sm_fix_LFP = imgaussfilt(fix_LFP,8);
-                sm_LFP_warped = imgaussfilt(fix_LFP_warped, 8);
-                
-                figure
-                subplot(2,2,1)
-                imagesc(-twin1:fix_dur_to_warp_to-1,1:size(fix_LFP,1),sm_fix_LFP)
-                xlabel('Time from Fixation Start (ms)')
-                ylabel('Fixation #')
-                title('Raw-Sorted by Fixation Duration')
-                box off
-                
-                subplot(2,2,3)
-                imagesc(-twin1:fix_dur_to_warp_to-1,1:size(fix_LFP_warped,1),sm_LFP_warped)
-                xlabel('Time from Fixation Start (ms)')
-                ylabel('Fixation #')
-                title('Warped-Sorted by Fixation Duration')
-                box off
-                
-                subplot(2,2,2)
-                plot(-twin1:fix_dur_to_warp_to-1,nanmean(fix_LFP),'k')
-                hold on
-                plot(-twin1:fix_dur_to_warp_to-1,nanmean(fix_LFP_warped),'b')
-                plot([-twin1 fix_dur_to_warp_to],[0 0],'k--')
-                yl = ylim;
-                plot([0 0],[yl(1) yl(2)],'k--')
-                hold off
-                xlim([-twin1 fix_dur_to_warp_to])
-                legend('Raw','Warped')
-                xlabel('Time from Fixation Start (ms)')
-                ylabel('Fixation #')
-                box off
-                
-                yraw = nanmean(fix_LFP(:,twin1-50:end));
-                ywarped = nanmean(fix_LFP_warped(:,twin1-50:end));
-                
-                lambda_x = yraw-min(yraw);%lambda_x must be positive
-                lambda = nansum(nansum(lambda_x.*p_x));
-                plogp = lambda_x.*log2(lambda_x/lambda);
-                raw_skaggs = nansum(nansum(plogp.*p_x)); %bits/second
-                
-                lambda_x = ywarped-min(ywarped);%lambda_x must be positive
-                lambda = nansum(nansum(lambda_x.*p_x));
-                plogp = lambda_x.*log2(lambda_x/lambda);
-                warped_skaggs = nansum(nansum(plogp.*p_x)); %bits/second
-                
-                fixation_LFP_skagg_info_raw_warped(1,LFP_ind) = raw_skaggs;
-                fixation_LFP_skagg_info_raw_warped(2,LFP_ind) = warped_skaggs;
-                
-                %                 fixation_LFP_amplitude(1,LFP_ind) = mean(yraw(twin1-t_start+1:end));
-                %                 fixation_LFP_amplitude(2,LFP_ind) = mean(ywarped(twin1-t_start+1:end));
-                fixation_LFP_amplitude(1,LFP_ind) = nanmean(fix_LFP_RMS);
-                fixation_LFP_amplitude(2,LFP_ind) = nanmean(fix_LFP_RMS_warped);
-                
-                p_change_LFP = 100*(warped_skaggs-raw_skaggs)/raw_skaggs;
-                
-                title(['All Fixations: ' num2str(p_change_LFP,3) '% Change'])
-                
-                subtitle([task_file(1:end-11) ' LFP Channel ' num2str(chan)])
-                %%
-                close
-                %save_and_close_fig(figure_dir2,[task_file(1:end-11) '_LFP_Channel' num2str(chan) '_LFP_fixation_time_warping']);
+                if plot_individual_cells
+                    [~,si] = sort(all_LFP_fixdur);
+                    fix_LFP = fix_LFP(si,:);
+                    fix_LFP_resampled(si,:);
+                    sm_fix_LFP = imgaussfilt(fix_LFP,8);
+                    sm_LFP_warped = imgaussfilt(fix_LFP_resampled, 8);
+                    
+                    figure
+                    subplot(2,2,1)
+                    imagesc(-twin1:fix_dur_to_warp_to-1,1:size(fix_LFP,1),sm_fix_LFP)
+                    xlabel('Time from Fixation Start (ms)')
+                    ylabel('Fixation #')
+                    title('Raw-Sorted by Fixation Duration')
+                    box off
+                    
+                    subplot(2,2,3)
+                    imagesc(-twin1:fix_dur_to_warp_to-1,1:size(fix_LFP_resampled,1),sm_LFP_warped)
+                    xlabel('Time from Fixation Start (ms)')
+                    ylabel('Fixation #')
+                    title('Warped-Sorted by Fixation Duration')
+                    box off
+                    
+                    subplot(2,2,2)
+                    plot(-twin1:fix_dur_to_warp_to-1,nanmean(fix_LFP),'k')
+                    hold on
+                    plot(-twin1:fix_dur_to_warp_to-1,nanmean(fix_LFP_resampled),'b')
+                    plot([-twin1 fix_dur_to_warp_to],[0 0],'k--')
+                    yl = ylim;
+                    plot([0 0],[yl(1) yl(2)],'k--')
+                    hold off
+                    xlim([-twin1 fix_dur_to_warp_to])
+                    legend('Raw','Resampled')
+                    xlabel('Time from Fixation Start (ms)')
+                    ylabel('Fixation #')
+                    box off
+                    
+                    yraw = nanmean(fix_LFP(:,twin1-50:end));
+                    yresampled = nanmean(fix_LFP_resampled(:,twin1-50:end));
+                    
+                    lambda_x = yraw-min(yraw);%lambda_x must be positive
+                    lambda = nansum(nansum(lambda_x.*p_x));
+                    plogp = lambda_x.*log2(lambda_x/lambda);
+                    raw_skaggs = nansum(nansum(plogp.*p_x)); %bits/second
+                    
+                    lambda_x = yresampled-min(yresampled);%lambda_x must be positive
+                    lambda = nansum(nansum(lambda_x.*p_x));
+                    plogp = lambda_x.*log2(lambda_x/lambda);
+                    resampled_skaggs = nansum(nansum(plogp.*p_x)); %bits/second
+                    
+                    fixation_LFP_skagg_info_raw_resampled(1,LFP_ind) = raw_skaggs;
+                    fixation_LFP_skagg_info_raw_resampled(2,LFP_ind) = resampled_skaggs;
+                    
+                    fixation_LFP_amplitude_resampled(1,LFP_ind) = nanmean(fix_LFP_RMS);
+                    fixation_LFP_amplitude_resampled(2,LFP_ind) = nanmean(fix_LFP_RMS_resampled);
+                    
+                    p_change_LFP = 100*(resampled_skaggs-raw_skaggs)/raw_skaggs;
+                    
+                    title(['All Fixations: ' num2str(p_change_LFP,3) '% Change'])
+                    
+                    subtitle([task_file(1:end-11) ' LFP Channel ' num2str(chan)])
+                    save_and_close_fig(figure_dir2,[task_file(1:end-11) '_LFP_Channel' num2str(chan) '_LFP_fixation_time_warping']);
+                end
                 %%
                 LFP_ind = LFP_ind +1;
             end
@@ -767,18 +856,18 @@ for monk =2:-1:1
     end
 end
 set(0,'DefaultFigureVisible','ON');
-%% Plot Fixation Aligned-Firing Rate Warping
+%% Change in in Fixation-aligned Temporal Information with Resampling
 
 %---Out2In Fixations
-[~,p_fix_out2in] = ttest(fixation_skagg_info_raw_warped(1,:),fixation_skagg_info_raw_warped(2,:));
-change_fix_out2in = 100*(fixation_skagg_info_raw_warped(2,:)-fixation_skagg_info_raw_warped(1,:))./fixation_skagg_info_raw_warped(1,:);
-mean_change_fix_out2in = nanmedian(change_fix_out2in);
+[~,p_fix_out2in] = ttest(fixation_skagg_info_raw_resampled(1,:),fixation_skagg_info_raw_resampled(2,:));
+change_fix_out2in = 100*(fixation_skagg_info_raw_resampled(2,:)-fixation_skagg_info_raw_resampled(1,:))./fixation_skagg_info_raw_resampled(1,:);
+median_change_fix_out2in = nanmedian(change_fix_out2in);
 change_fix_out2in(change_fix_out2in < -300) = -300;%for ploting make it nicer looking
 change_fix_out2in(change_fix_out2in > 300) = 300;%for ploting make it nicer looking
 
-[~,p_fr_out2in] = ttest(fixation_average_firing_rate(1,:),fixation_average_firing_rate(2,:));
-fr_change_fix_out2in = 100*(fixation_average_firing_rate(2,:)-fixation_average_firing_rate(1,:))./fixation_average_firing_rate(1,:);
-mean_fr_change_fix_out2in = nanmedian(fr_change_fix_out2in);
+[~,p_fr_out2in] = ttest(fixation_average_firing_rate_resampled(1,:),fixation_average_firing_rate_resampled(2,:));
+fr_change_fix_out2in = 100*(fixation_average_firing_rate_resampled(2,:)-fixation_average_firing_rate_resampled(1,:))./fixation_average_firing_rate_resampled(1,:);
+median_fr_change_fix_out2in = nanmedian(fr_change_fix_out2in);
 fr_change_fix_out2in(fr_change_fix_out2in < -200) = 200;
 fr_change_fix_out2in(fr_change_fix_out2in > 200) = 200;
 
@@ -794,14 +883,14 @@ hist(change_fix_out2in,25)
 box off
 xlabel('% Change in Skagg Info')
 ylabel('View Cell Count')
-title(['Out2in Only: median change = ' num2str(mean_change_fix_out2in,3) '%, (p = ' num2str(p_fix_out2in,3) ')'])
+title(['Out2in Only: median change = ' num2str(median_change_fix_out2in,3) '%, (p = ' num2str(p_fix_out2in,3) ')'])
 
 subplot(2,3,2)
 hist(fr_change_fix_out2in,25)
 box off
 xlabel('% Change in Firing Rate')
 ylabel('View Cell Count')
-title(['Out2in Only: median change = ' num2str(mean_fr_change_fix_out2in,3) '%, (p = ' num2str(p_fr_out2in,3) ')'])
+title(['Out2in Only: median change = ' num2str(median_fr_change_fix_out2in,3) '%, (p = ' num2str(p_fr_out2in,3) ')'])
 
 subplot(2,3,3)
 plot(change_fix_out2in,fr_change_fix_out2in,'.k')
@@ -811,15 +900,15 @@ title(['Out2In: Corr Change in Firing Rate & Skagg, r = ' num2str(corr_change_fi
 box off
 
 %---All Fixations---%
-[~,p_fix_all] = ttest(fixation_skagg_info_raw_warped(3,:),fixation_skagg_info_raw_warped(4,:));
-change_fix_all = 100*(fixation_skagg_info_raw_warped(4,:)-fixation_skagg_info_raw_warped(3,:))./fixation_skagg_info_raw_warped(3,:);
+[~,p_fix_all] = ttest(fixation_skagg_info_raw_resampled(3,:),fixation_skagg_info_raw_resampled(4,:));
+change_fix_all = 100*(fixation_skagg_info_raw_resampled(4,:)-fixation_skagg_info_raw_resampled(3,:))./fixation_skagg_info_raw_resampled(3,:);
 mean_change_fix_all = nanmedian(change_fix_all);
 change_fix_all(change_fix_all < -300) = -300;%for ploting make it nicer looking
 change_fix_all(change_fix_all > 300) = 300;%for ploting make it nicer looking
 
-[~,p_fr_all] = ttest(fixation_average_firing_rate(3,:),fixation_average_firing_rate(4,:));
-fr_change_fix_all = 100*(fixation_average_firing_rate(4,:)-fixation_average_firing_rate(3,:))./fixation_average_firing_rate(3,:);
-mean_fr_change_fix_all = nanmedian(fr_change_fix_all);
+[~,p_fr_all] = ttest(fixation_average_firing_rate_resampled(3,:),fixation_average_firing_rate_resampled(4,:));
+fr_change_fix_all = 100*(fixation_average_firing_rate_resampled(4,:)-fixation_average_firing_rate_resampled(3,:))./fixation_average_firing_rate_resampled(3,:);
+median_fr_change_fix_all = nanmedian(fr_change_fix_all);
 fr_change_fix_all(fr_change_fix_all < -200) = 200;
 fr_change_fix_all(fr_change_fix_all > 200) = 200;
 
@@ -841,7 +930,7 @@ hist(fr_change_fix_all,25)
 box off
 xlabel('% Change in Firing Rate')
 ylabel('View Cell Count')
-title(['All Fixations: median change = ' num2str(mean_fr_change_fix_all,3) '%, (p = ' num2str(p_fr_all,3) ')'])
+title(['All Fixations: median change = ' num2str(median_fr_change_fix_all,3) '%, (p = ' num2str(p_fr_all,3) ')'])
 
 subplot(2,3,6)
 plot(change_fix_all,fr_change_fix_all,'.k')
@@ -849,17 +938,99 @@ xlabel('% Change in Skagg')
 ylabel('% Change in Firing Rate')
 title(['All Fixations: Corr Change in Firing Rate & Skagg, r = ' num2str(corr_change_fix_all(2),3)])
 box off
-%% LFP Fixation Aligned Responses
-fixation_LFP_skagg_info_raw_warped = laundry(fixation_LFP_skagg_info_raw_warped);
-fixation_LFP_amplitude = laundry(fixation_LFP_amplitude);
+
+%% Change in in Fixation-aligned Temporal Information with Scaling
+
+%---Out2In Fixations
+[~,p_scaled_fix_out2in] = ttest(fixation_skagg_info_raw_scaled(1,:),fixation_skagg_info_raw_scaled(2,:));
+change_scaled_fix_out2in = 100*(fixation_skagg_info_raw_scaled(2,:)-fixation_skagg_info_raw_scaled(1,:))./fixation_skagg_info_raw_scaled(1,:);
+median_change_scaled_fix_out2in = nanmedian(change_scaled_fix_out2in);
+change_scaled_fix_out2in(change_scaled_fix_out2in < -300) = -300;%for ploting make it nicer looking
+change_scaled_fix_out2in(change_scaled_fix_out2in > 300) = 300;%for ploting make it nicer looking
+
+[~,p_scaled_fr_out2in] = ttest(fixation_average_firing_rate_scaled(1,:),fixation_average_firing_rate_scaled(2,:));
+fr_change_scaled_fix_out2in = 100*(fixation_average_firing_rate_scaled(2,:)-fixation_average_firing_rate_scaled(1,:))./fixation_average_firing_rate_scaled(1,:);
+median_fr_change_scaled_fix_out2in = nanmedian(fr_change_scaled_fix_out2in);
+fr_change_scaled_fix_out2in(fr_change_scaled_fix_out2in < -200) = 200;
+fr_change_scaled_fix_out2in(fr_change_scaled_fix_out2in > 200) = 200;
+
+vals1 = change_scaled_fix_out2in;
+vals1(isnan(vals1)) = [];
+vals2 = fr_change_scaled_fix_out2in;
+vals2(isnan(vals2)) = [];
+corr_change_scaled_fix_out2in = corrcoef(vals1,vals2);
+
+figure
+subplot(2,3,1)
+hist(change_scaled_fix_out2in,25)
+box off
+xlabel('% Change in Skagg Info')
+ylabel('View Cell Count')
+title(['Out2in Only: median change = ' num2str(median_change_scaled_fix_out2in,3) '%, (p = ' num2str(p_scaled_fix_out2in,3) ')'])
+
+subplot(2,3,2)
+hist(fr_change_scaled_fix_out2in,25)
+box off
+xlabel('% Change in Firing Rate')
+ylabel('View Cell Count')
+title(['Out2in Only: median change = ' num2str(median_fr_change_scaled_fix_out2in,3) '%, (p = ' num2str(p_scaled_fr_out2in,3) ')'])
+
+subplot(2,3,3)
+plot(change_scaled_fix_out2in,fr_change_scaled_fix_out2in,'.k')
+xlabel('% Change in Skagg')
+ylabel('% Change in Firing Rate')
+title(['Out2In: Corr Change in Firing Rate & Skagg, r = ' num2str(corr_change_scaled_fix_out2in(2),3)])
+box off
 
 %---All Fixations---%
-[~,p_fix_LFP_] = ttest(fixation_LFP_skagg_info_raw_warped(1,:),fixation_LFP_skagg_info_raw_warped(2,:));
-change_fix_LFP_ = 100*(fixation_LFP_skagg_info_raw_warped(2,:)-fixation_LFP_skagg_info_raw_warped(1,:))./fixation_LFP_skagg_info_raw_warped(1,:);
+[~,p_scaled_fix_all] = ttest(fixation_skagg_info_raw_scaled(3,:),fixation_skagg_info_raw_scaled(4,:));
+change_scaled_fix_all = 100*(fixation_skagg_info_raw_scaled(4,:)-fixation_skagg_info_raw_scaled(3,:))./fixation_skagg_info_raw_scaled(3,:);
+mean_change_scaled_fix_all = nanmedian(change_scaled_fix_all);
+change_scaled_fix_all(change_scaled_fix_all < -300) = -300;%for ploting make it nicer looking
+change_scaled_fix_all(change_scaled_fix_all > 300) = 300;%for ploting make it nicer looking
+
+[~,p_scaled_fr_all] = ttest(fixation_average_firing_rate_scaled(3,:),fixation_average_firing_rate_scaled(4,:));
+fr_change_scaled_fix_all = 100*(fixation_average_firing_rate_scaled(4,:)-fixation_average_firing_rate_scaled(3,:))./fixation_average_firing_rate_scaled(3,:);
+median_fr_change_scaled_fix_all = nanmedian(fr_change_scaled_fix_all);
+fr_change_scaled_fix_all(fr_change_scaled_fix_all < -200) = 200;
+fr_change_scaled_fix_all(fr_change_scaled_fix_all > 200) = 200;
+
+vals1 = change_scaled_fix_all;
+vals1(isnan(vals1)) = [];
+vals2 = fr_change_scaled_fix_all;
+vals2(isnan(vals2)) = [];
+corr_change_scaled_fix_all = corrcoef(vals1,vals2);
+
+subplot(2,3,4)
+hist(change_scaled_fix_all,25)
+box off
+xlabel('% Change in Skagg Info')
+ylabel('View Cell Count')
+title(['All Fixations: median change = ' num2str(mean_change_scaled_fix_all,3) '%, (p = ' num2str(p_scaled_fix_all,3) ')'])
+
+subplot(2,3,5)
+hist(fr_change_scaled_fix_all,25)
+box off
+xlabel('% Change in Firing Rate')
+ylabel('View Cell Count')
+title(['All Fixations: median change = ' num2str(median_fr_change_scaled_fix_all,3) '%, (p = ' num2str(p_scaled_fr_all,3) ')'])
+
+subplot(2,3,6)
+plot(change_scaled_fix_all,fr_change_scaled_fix_all,'.k')
+xlabel('% Change in Skagg')
+ylabel('% Change in Firing Rate')
+title(['All Fixations: Corr Change in Firing Rate & Skagg, r = ' num2str(corr_change_scaled_fix_all(2),3)])
+box off
+
+%% LFP Fixation Aligned Responses
+
+%---All Fixations---%
+[~,p_fix_LFP_] = ttest(fixation_LFP_skagg_info_raw_resampled(1,:),fixation_LFP_skagg_info_raw_resampled(2,:));
+change_fix_LFP_ = 100*(fixation_LFP_skagg_info_raw_resampled(2,:)-fixation_LFP_skagg_info_raw_resampled(1,:))./fixation_LFP_skagg_info_raw_resampled(1,:);
 mean_change_fix_LFP_ = nanmedian(change_fix_LFP_);
 
-[~,p_LFP_all] = ttest(fixation_LFP_amplitude(1,:),fixation_LFP_amplitude(2,:));
-LFP_change_fix_LFP_ = 100*(fixation_LFP_amplitude(2,:)-fixation_LFP_amplitude(1,:))./fixation_LFP_amplitude(1,:);
+[~,p_LFP_all] = ttest(fixation_LFP_amplitude_resampled(1,:),fixation_LFP_amplitude_resampled(2,:));
+LFP_change_fix_LFP_ = 100*(fixation_LFP_amplitude_resampled(2,:)-fixation_LFP_amplitude_resampled(1,:))./fixation_LFP_amplitude_resampled(1,:);
 mean_LFP_change_fix_LFP_ = nanmedian(LFP_change_fix_LFP_);
 
 vals1 = change_fix_LFP_;
@@ -888,4 +1059,4 @@ plot(change_fix_LFP_,LFP_change_fix_LFP_,'.k')
 xlabel('% Change in Skagg')
 ylabel('% Change in Firing Rate')
 title(['All Fixations: Corr Change in Firing Rate & Skagg, r = ' num2str(corr_change_fix_LFP_(2),3)])
-box off
+box off        
