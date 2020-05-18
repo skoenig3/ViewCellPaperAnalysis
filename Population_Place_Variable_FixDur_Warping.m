@@ -136,16 +136,7 @@ for monk =2:-1:1
         load([data_dir task_file(1:end-11) '-spatial_analysis_results.mat'],...
             'spatial_info','spike_times','eyepos','binsize','filter_width')
         
-        if exist([data_dir task_file(1:8) '-ListSQ-Visual_Response_results.mat'],'file') %want to remove later
-            load([data_dir task_file(1:8) '-ListSQ-Visual_Response_results.mat']) %visual response analysis
-            load([data_dir task_file(1:8) '-ListSQ-Visual_Response_Memory_results']) %memory visual response analysis
-        else
-            if num_units ~= 0
-                error('Where is this file')
-            end
-            continue
-        end
-        
+
         %load Place Cell Fixation Analysis data
         load([data_dir task_file(1:8) '-Place_Cell_Analysis.mat'])
         if numshuffs < 1000
@@ -155,10 +146,6 @@ for monk =2:-1:1
             error('Smoothing Value (2xStd) does not match expectations!')
         end
         
-        if any(spatial_info.shuffled_rate_prctile> 95  & spatial_info.spatialstability_halves_prctile > 95)
-        else
-            continue
-        end
         
         %Save as new variableso can reload later...kind of dumb but that was how it was written
         absolute_fixationstats = fixationstats;
