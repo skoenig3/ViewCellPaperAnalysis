@@ -167,7 +167,7 @@ for monk =2:-1:1
                 
                 %---store already smoothed firing rate across units---%
                 %smoothing nows save processing time later
-                [~,all_out2in{place_cell_ind}] = nandens(firing_rate,2*smval,'gauss',Fs,'nanflt'); %calculate smoothed firing rate
+                [~,all_out2in{place_cell_ind}] = nandens(firing_rate,smval,'gauss',Fs,'nanflt'); %calculate smoothed firing rate
                 place_cell_ind = place_cell_ind+1;
             else
                 
@@ -210,7 +210,7 @@ for monk =2:-1:1
                 
                 %---store already smoothed firing rate across units---%
                 %smoothing nows save processing time later
-                [~,all_out2in_nonplace{nonplace_cell_ind}] = nandens(firing_rate,2*smval,'gauss',Fs,'nanflt'); %calculate smoothed firing rate
+                [~,all_out2in_nonplace{nonplace_cell_ind}] = nandens(firing_rate,smval,'gauss',Fs,'nanflt'); %calculate smoothed firing rate
                 nonplace_cell_ind = nonplace_cell_ind+1;
             end
         end

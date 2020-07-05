@@ -10,13 +10,13 @@ function [itmlist,sequence_items,sequence_locations] = read_ListSQ_itm_and_cnd_f
 %strtrim to remove any preceding or trailing spaces
 if nargin == 1 %old input style
     itmfile = strtrim(itmfile);
-    ITMFile = ['C:\Users\seth.koenig\Documents\MATLAB\ListSQ\Item and Conditions Files\' itmfile];
-    CNDFile = ['C:\Users\seth.koenig\Documents\MATLAB\ListSQ\Item and Conditions Files\' itmfile(1:end-4) '.cnd'];
+    ITMFile = ['C:\Users\sethk\OneDrive\Documents\MATLAB\ListSQ\Item and Conditions Files\' itmfile];
+    CNDFile = ['C:\Users\sethk\OneDrive\Documents\MATLAB\ListSQ\Item and Conditions Files\' itmfile(1:end-4) '.cnd'];
 elseif nargin == 2 %newer input style since now  can have item files and cnd files with different #s
     itmfile = strtrim(itmfile);
     cndfile = strtrim(cndfile);
-    ITMFile = ['C:\Users\seth.koenig\Documents\MATLAB\ListSQ\Item and Conditions Files\' itmfile];
-    CNDFile = ['C:\Users\seth.koenig\Documents\MATLAB\ListSQ\Item and Conditions Files\' cndfile];
+    ITMFile = ['C:\Users\sethk\OneDrive\Documents\MATLAB\ListSQ\Item and Conditions Files\' itmfile];
+    CNDFile = ['C:\Users\sethk\OneDrive\Documents\MATLAB\ListSQ\Item and Conditions Files\' cndfile];
 else
     error('Too many inputs')
 end

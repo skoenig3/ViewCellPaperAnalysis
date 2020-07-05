@@ -1,4 +1,5 @@
-% Code below creates population summary for Significnat Saccade Direction Cells
+
+clc% Code below creates population summary for Significnat Saccade Direction Cells
 % Written by Seth Konig
 % Code does the following
 % 1) Summarizes MRLs (mean resultant vector length) for place and non-place cells
@@ -10,7 +11,7 @@
 clar %clear,clc
 
 %where to store spatial analysis figure copies
-summary_directory =  'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\PopulationFigures\Saccade Direction\';
+summary_directory =  'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PopulationFigures\Saccade Direction\';
 if ~isdir(summary_directory)
     mkdir(summary_directory)
 end
@@ -22,8 +23,10 @@ imageX = 800; %horizontal image size
 imageY = 600; %vertical image size
 saccades_with_spikes = [];
 smval_deg = 6;%18 %9 degrees std
+num_shuffs_crossvalid = 1000; %cross validating time-cell plot
 
 %---Values All Fixations out2out and in2in---%
+all_dirs = []; %all saccade directions
 all_mrls = []; %all observed MRLs (mean resultant vector length) ignoring out2in and in2out
 all_mrl_pctiles = []; %observed MRLs shuffled percentile ignoring out2in and in2out
 
@@ -38,7 +41,6 @@ all_monkeys = []; %1s and 2s for monkeys
 direction_cell_AP_location = []; %AP location of recorded place cell
 place_cell_curves_in_min_out = [];
 
-
 prefered_firing_rate_curves = [];
 anti_prefered_firing_rate_curves = [];
 ratio_prefered = [];
@@ -46,32 +48,35 @@ all_windows  = [];
 normalized_prefered = [];
 median_prefered_directions = [];
 
+all_saccade_dir = [];%for storing firing rate curves for cross validation stats
+cell_ind = 1;
+
+monkeys = {'Vivian','Tobii'};
 figure_dir = {};
-all_dirs = []; %saccade directions for significant units
-for monkey = 2:-1:1
+for monk = 2:-1:1
+    monkey = monkeys{monk};
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %---Read in Excel Sheet for Session data---%%%
     %only need to run when somethings changed or sessions have been added
-    if monkey == 1%strcmpi(monkey,'Vivian')
-        excel_dir = '\\towerexablox.wanprc.org\Buffalo\eblab\PLX files\Vivian\';
+    if strcmpi(monkey,'Vivian')
+        excel_dir = 'P:\eblab\PLX files\Vivian\';
         excel_file = [excel_dir 'Vivian_Recording_Notes-ListSQ.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ListSQ\PW Resorted\';
-        figure_dir{1} = 'C:\Users\seth.koenig\Documents\MATLAB\ListSQ\PW Resorted Figures\';
-        
+        data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PW Recording Files\';
+        figure_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PW Figures\';
         
         %listsq_read_excel(data_dir,excel_file);
         load([data_dir 'Across_Session_Unit_Data_Vivian.mat'])
         
-        predict_rt = 156;%156 ms prediction 5-percentile
-        chamber_zero = [13.5 -11]; %AP ML[
+        predict_rt = 155;%155.85 ms prediction 5-percentile
+        chamber_zero = [13.5 -11]; %AP ML
         
-    elseif monkey ==2%strcmpi(monkey,'Tobii')
-        excel_dir = '\\towerexablox.wanprc.org\Buffalo\eblab\PLX files\Tobii\';
+    elseif strcmpi(monkey,'Tobii')
+        excel_dir = 'P:\eblab\PLX files\Tobii\';
         excel_file = [excel_dir 'Tobii_recordingnotes.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ListSQ\TO Recording Files\';
-        figure_dir{2} = 'C:\Users\seth.koenig\Documents\MATLAB\ListSQ\TO Figures\';
+        data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+        figure_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Figures\';
         
-        predict_rt = 138;%ms prediction 5-percentile
+        predict_rt = 135;%ms prediction 5-percentile
         chamber_zero = [7.5 15]; %AP ML, his posertior hippocampus appears slightly shorter/more compressed than atlas
         
         %listsq_read_excel(data_dir,excel_file);
@@ -131,7 +136,7 @@ for monkey = 2:-1:1
                 all_mrls = [all_mrls mrls.all_saccades(unit)]; %all observed MRLs (mean resultant vector length) ignoring out2in and in2out
                 all_mrl_pctiles = [all_mrl_pctiles mrls.all_saccades_shuffled_prctile(unit)];%observed MRLs shuffled percentile ignoring out2in and in2out
                 
-                all_dirs = [all_dirs saccade_direction{unit}];
+                all_dirs = [all_dirs saccade_direction{unit}]; %all saccade directions
                 
                 %---Values All Fixations out2out only---%
                 all_mlrs_out = [all_mlrs_out mrls.out2out(unit)]; %observed MRLs for out2out fixations only
@@ -241,15 +246,15 @@ for monkey = 2:-1:1
                         sac_aligned(fixations_too_short,:) = [];
                     end
                     
+                    [~,all_saccade_dir{cell_ind}] = nandens(sac_aligned,smval,'gauss',Fs,'nanflt'); %calculate smoothed firing rate
+                    cell_ind = cell_ind+1;
+                    
                     [mean_binned_firing_rate,degrees,mrl] = bin_directional_firing(bin_deg,sac_aligned,window,sac_dirs);
                     binned_firing_rate_curves{1,unit} = mean_binned_firing_rate; %binned firing rates
                     [estimated_prefered_direction,prefered_dirs,anti_prefered_dirs,smoothed_direction_curve] = ...
                         select_prefred_indeces(binned_firing_rate_curves{1,unit},degrees,sac_dirs,smval_deg,bin_deg);
                     
                     median_prefered_directions = [median_prefered_directions estimated_prefered_direction];
-                    if strcmpi(task_file(1:8),'TO160515')
-                        disp('now')
-                    end
                     antipref = nandens3(sac_aligned(anti_prefered_dirs,:),smval,1000);
                     pref = nandens3(sac_aligned(prefered_dirs,:),smval,1000);
                     a = antipref;
@@ -325,25 +330,25 @@ disp(['Analyzed ' num2str(sum(spatialness == 0 & ~isnan(all_mrl_pctiles))) ' non
 disp(['Analyzed ' num2str(sum(~isnan(all_mrl_pctiles))) ' total cells'])
 %%
 %---Copy Relevant Figures to Summary Directory---%
-for unit = 1:length(all_unit_names)
-    if all_mrl_pctiles(unit) > 95
-        sub_dir1 = '\Saccade Direction and Amplitude\';
-        name1 = [all_unit_names{unit} '_Saccade_Direction_Analysis.png'];
-        if spatialness(unit) == 1 %place cell
-            if ~exist([summary_directory 'Place\'],'dir')
-                mkdir([summary_directory 'Place\']);
-            end
-            copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name1],...
-                [summary_directory 'Place\' name1])
-        elseif spatialness(unit) == 0 %non place cell
-            if ~exist([summary_directory 'Non Place\'])
-               mkdir([summary_directory 'Non Place\']); 
-            end
-            copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name1],...
-                [summary_directory 'Non Place\' name1])
-        end
-    end
-end
+% for unit = 1:length(all_unit_names)
+%     if all_mrl_pctiles(unit) > 95
+%         sub_dir1 = '\Saccade Direction and Amplitude\';
+%         name1 = [all_unit_names{unit} '_Saccade_Direction_Analysis.png'];
+%         if spatialness(unit) == 1 %place cell
+%             if ~exist([summary_directory 'Place\'],'dir')
+%                 mkdir([summary_directory 'Place\']);
+%             end
+%             copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name1],...
+%                 [summary_directory 'Place\' name1])
+%         elseif spatialness(unit) == 0 %non place cell
+%             if ~exist([summary_directory 'Non Place\'])
+%                mkdir([summary_directory 'Non Place\']); 
+%             end
+%             copyfile([figure_dir{all_monkeys(unit)} sub_dir1 name1],...
+%                 [summary_directory 'Non Place\' name1])
+%         end
+%     end
+% end
 
 %% Distribution of Saccade Directions
 smval_deg =18; %9 degrees std
@@ -583,3 +588,7 @@ xlabel('Time From Saccade Start (ms)')
 ylabel('View Cell #')
 caxis([-std(vals(:)) 1])
 colorbar
+
+
+%% Cross Validate Temporal Data
+crossValidatedStatsSacDir = crossValidatePlacePopulationTemporalResponse(all_saccade_dir,num_shuffs_crossvalid,'SaccadeDirection',twin1,twin2);

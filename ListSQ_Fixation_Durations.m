@@ -37,30 +37,33 @@ trial_count = [];
 
 RMS_noise = cell(2,85); %variability in fixation position as a liberal estimate of eye tracking noise
 %row 1 is x, row 2 is y
-for monkey =1:2
+monkeys = {'Vivian','Tobii'};
+figure_dir = {};
+for monk = 2:-1:1
+    monkey = monkeys{monk};
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %---Read in Excel Sheet for Session data---%%%
     %only need to run when somethings changed or sessions have been added
-    if monkey == 1%strcmpi(monkey,'Vivian')
-        excel_dir = '\\towerexablox.wanprc.org\Buffalo\eblab\PLX files\Vivian\';
+    if strcmpi(monkey,'Vivian')
+        excel_dir = 'P:\eblab\PLX files\Vivian\';
         excel_file = [excel_dir 'Vivian_Recording_Notes-ListSQ.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ListSQ\PW Resorted\';
-        figure_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ListSQ\PW Resored Figures\';
+        data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PW Recording Files\';
+        figure_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PW Figures\';
         
         %listsq_read_excel(data_dir,excel_file);
         load([data_dir 'Across_Session_Unit_Data_Vivian.mat'])
         
-        predict_rt = 156;%156 ms prediction 5-percentile
+        predict_rt = 155;%155.85 ms prediction 5-percentile
         chamber_zero = [13.5 -11]; %AP ML
         
-    elseif monkey ==2%strcmpi(monkey,'Tobii')
-        excel_dir = '\\towerexablox.wanprc.org\Buffalo\eblab\PLX files\Tobii\';
+    elseif strcmpi(monkey,'Tobii')
+        excel_dir = 'P:\eblab\PLX files\Tobii\';
         excel_file = [excel_dir 'Tobii_recordingnotes.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ListSQ\TO Recording Files\';
-        figure_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ListSQ\TO Figures\';
+        data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+        figure_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Figures\';
         
-        predict_rt = 138;%ms prediction 5-percentile
-        chamber_zero = [7.5 20]; %AP ML, his posertior hippocampus appears slightly shorter/more compressed than atlas
+        predict_rt = 135;%ms prediction 5-percentile
+        chamber_zero = [7.5 15]; %AP ML, his posertior hippocampus appears slightly shorter/more compressed than atlas
         
         %listsq_read_excel(data_dir,excel_file);
         load([data_dir 'Across_Session_Unit_Data_Tobii.mat'])
@@ -257,7 +260,7 @@ for monkey =1:2
             end
             
         end
-        which_monkey(set) = monkey;
+        which_monkey(set) = monk;
         trial_count(set) = num_trials;
         
         vel_profile = [vel_profile; nanmedian(v_profile) ];
@@ -333,7 +336,7 @@ hold off
 xlabel('Fixation Duration (ms)')
 ylabel('Count')
 title(sprintf(['Distribution of Fixation Durations \n'...
-    'mean = ' num2str(round(nanmedian(durs))) ' ms median = ' num2str(round(nanmedian(durs))) ' ms']))
+    'mean = ' num2str(round(nanmedian(durs))) ' ms median = ' num2str(round(nanmean(durs))) ' ms']))
 axis square
 
 %% Distribution of All Saccade Durations
@@ -354,7 +357,7 @@ xlim([10 80])
 xlabel('saccade Duration (ms)')
 ylabel('Count')
 title(sprintf(['Distribution of Sacccade Durations \n'...
-    'mean = ' num2str(round(nanmedian(durs))) ' ms median = ' num2str(round(nanmedian(durs))) ' ms']))
+    'mean = ' num2str(round(nanmedian(durs))) ' ms median = ' num2str(round(nanmean(durs))) ' ms']))
 axis square
 box off
 %% Distribution of Saccade Ampltiudes
@@ -409,8 +412,8 @@ legend('Novel','Repeat')
 title(['PW and TO n_{sessions} = ' num2str(size(saccade_amplitudes,2)) ', p_{Wilcoxon} = ' num2str(p_wilx,3)])
 %% Post-hoc Power Analysis How many pairs of images you would need to show a difference
 
-n = sampsizepwr('t2',[mean(nanmedian(nov_durs(:,3:12)')) std(nanmedian(nov_durs(:,3:12)'))],...
-    [mean(nanmedian(rep_durs(:,3:12)')) std(nanmedian(rep_durs(:,3:12)'))],0.9)
+n = sampsizepwr('t2',[nanmean(nanmedian(nov_durs(:,3:12)')) nanstd(nanmedian(nov_durs(:,3:12)'))],...
+    [nanmean(nanmedian(rep_durs(:,3:12)')) nanstd(nanmedian(rep_durs(:,3:12)'))],0.9)
 %%
 
 figure
