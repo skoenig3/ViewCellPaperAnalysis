@@ -4,11 +4,11 @@
 
 
 % %plots fixation aligned rasters so that can export to eps
-%
+clar
 data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
 
-task_file = 'TO160105';
-unit_name = 'sig003a';
+task_file = 'TO160325';
+unit_name = 'sig002a';
 
 load([data_dir  task_file(1:8) '-Place_Cell_Analysis.mat']);
 
@@ -28,8 +28,8 @@ num_in = sum(fix_in_out == 1);
 num_out = sum(fix_in_out == 4);
 downsample = floor(num_out/num_in)/2; %many more fixations outside so downsample to show ~equal number
 figure
-%---Fixations in->out vs out->out---%
 
+%---Fixations in->out vs out->out---%
 out_matrix = fix_locked_firing(fix_in_out == 4,:);
 out_matrix = out_matrix(1:downsample:end,:);
 [trial,time] = find(out_matrix == 1);
@@ -56,6 +56,7 @@ xlabel('Time from Fixation Start (ms)')
 title('Fixation Aligned Rasters')
 axis square
 
+%---Firing Rate Curves---%
 figure
 hold on
 [~,~,~,y_list,~] = dofill(t,fix_locked_firing(fix_in_out == 1,:),'red',1,smval);%out-> in
@@ -94,225 +95,244 @@ set(gca,'Xtick',[-twin1 -twin1/2 0 twin1/2 twin1 3/2*twin1 twin2])
 %     ', n_{out->out} = ' num2str(sum(fix_in_out == 4))]));
 title(['Peak Firing Rate of ' num2str(pks,3) ' Hz at ' num2str(locs-twin1) ' ms'])
 axis square
+
+
+%---Normalized Firing Rate Curve---%
+%for plot2b
+clear var area %exist in store data 
+
+%normalize out2in firing rate curve
+in_curve = y_list;
+in_curve = in_curve-mean(in_curve(1:twin1));
+in_curve = in_curve/max(in_curve);
+
+figure
+area(-twin1:twin2-1,in_curve)
+hold on
+plot([-twin1 twin2],[0 0],'k')
+yls = ylim;
+plot([0 0],[yls(1) yls(2)],'k--')
+hold off
+
 %%
 %% List vs Sequence Analysis
 %
-% clar
-% data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
-% %data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PW Resorted\';
+clar
+data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+%data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PW Resorted\';
+
+task_file = 'TO160318';
+unit_name = 'sig003a';
+
+% load([data_dir  task_file '-preprocessed.mat'],'cfg','item_file','cnd_file');
+load([data_dir  task_file(1:8) '-Place_Cell_Analysis.mat']);
+load([data_dir  task_file(1:8) '_3-spatial_analysis_results.mat']);
+load([data_dir  task_file(1:8) '_3-preprocessed.mat'],'item_file','cnd_file');
+[~,~,sequence_locations] = read_ListSQ_itm_and_cnd_files(item_file,cnd_file);
+
+H = define_spatial_filter(filter_width);
+
+
+this_unit = [];
+for unit = 1:size(unit_stats,2)
+    if strcmpi(unit_stats{1,unit},unit_name)
+        this_unit = unit;
+        break
+    end
+end
+imageX = 800;
+imageY = 600;
+
+firing_rate_map = get_firing_rate_map({eyepos{unit},spike_times{unit}},imageX,imageY,binsize,H,Fs,'all'); %get firing rate map
+maxfr = prctile(firing_rate_map(:),97.5);
+
+figure
+%---plot firing rate map for all images---%
+h = imagesc(firing_rate_map);
+set(h,'alphadata',~isnan(firing_rate_map));
+title('All images')
+axis off
+axis equal
+colorbar
+colormap('jet')
+clim = caxis;
+caxis([clim(1) maxfr])
+
+this_unit = [];
+for unit = 1:size(unit_stats,2)
+    if strcmpi(unit_stats{1,unit},unit_name)
+        this_unit = unit;
+        break
+    end
+end
+
+fix_locked_firing = list_fixation_locked_firing{this_unit};
+fix_in_out = in_out{this_unit};
+t = -twin1:twin2-1;
+
+num_in = sum(fix_in_out == 1);
+num_out = sum(fix_in_out == 4);
+downsample = floor(num_out/num_in)/2; %many more fixations outside so downsample to show ~equal number
+
+place_field_matrix = all_place_field_matrix{unit};
+%Determine if any of the items are inside the matrix or not?
+sequence_inside = NaN(2,4);
+for c = 1:4
+    for seq = 1:2
+        yloc = imageY-sequence_locations{seq}(2,c);
+        xloc = sequence_locations{seq}(1,c);
+
+        %---Simple version...is item in or out of field---%
+        %             if place_field_matrix(yloc,xloc) == 1 %item is in field
+        %                 sequence_inside(seq,c) = 1;
+        %             elseif place_field_matrix(yloc,xloc) == 0 %item is out of the field
+        %                 sequence_inside(seq,c) = 0;
+        %             else %coverage unknown
+        %                 sequence_inside(seq,c) = NaN;
+        %             end
+
+        %---Less Simple Version...is item on border of field---%
+        if place_field_matrix(yloc,xloc) == 1 %item is in field
+            %then check if item is on border of field, if yes don't
+            %count. Check if field extends at least 0.5 dva, should be
+            %effected by coverage on edges items are at least 3.5 dva
+            %away from border of image. Median eye tracking error (fixation accuracy)
+            %on this task ~0.56 dva so should be ok with 0.5 and most
+            %fixations within 1 dva
+            if place_field_matrix(yloc-12,xloc) == 1 && place_field_matrix(yloc-12,xloc-12) == 1 &&...
+                    place_field_matrix(yloc-12,xloc+12) == 1 && place_field_matrix(yloc+12,xloc) == 1 && ...
+                    place_field_matrix(yloc+12,xloc-12) == 1 && place_field_matrix(yloc+12,xloc+12) == 1 && ...
+                    place_field_matrix(yloc,xloc+12) == 1 && place_field_matrix(yloc,xloc-12) == 1
+                sequence_inside(seq,c) =1;
+            else
+                sequence_inside(seq,c) = NaN; %don't want to use border for any category
+            end
+        else %check if item outside is also close to the border
+            if place_field_matrix(yloc-12,xloc) == 1 || place_field_matrix(yloc-12,xloc-12) == 1 ||...
+                    place_field_matrix(yloc-12,xloc+12) == 1 || place_field_matrix(yloc+12,xloc) == 1 || ...
+                    place_field_matrix(yloc+12,xloc-12) == 1 || place_field_matrix(yloc+12,xloc+12) == 1 || ...
+                    place_field_matrix(yloc,xloc+12) == 1 || place_field_matrix(yloc,xloc-12) == 1
+                sequence_inside(seq,c) =NaN; %don't want to use border for any category
+            else
+                sequence_inside(seq,c) = 0;
+            end
+        end
+    end
+end
+
+figure
+hold on
+[~,~,~,y_list,~] = dofill(t,fix_locked_firing(fix_in_out == 1,:),'red',1,smval);%out-> in
+dofill(t,fix_locked_firing(fix_in_out == 4,:),'blue',1,smval);%out->out
+%     plot(t,list_95_curve{1,unit},'k','linewidth',2);%95% confidence interval
+[pks,locs] = findpeaks(y_list,'MinPeakWidth',40);
+locs(pks < 0.66*max(y_list)) = [];
+pks(pks < 0.66*max(y_list)) = [];
+plot(locs-twin1,pks,'*k')
+yl = ylim;
+if yl(1) < 0
+    yl(1) = 0;
+    ylim(yl);
+end
+plot([0 0],[yl(1) yl(2)],'k--')
 %
-% task_file = 'TO160318_3';
-% unit_name = 'sig003a';
-%
-% % load([data_dir  task_file '-preprocessed.mat'],'cfg','item_file','cnd_file');
-% load([data_dir  task_file(1:8) '-Place_Cell_Analysis.mat']);
-% load([data_dir  task_file(1:8) '_3-spatial_analysis_results.mat']);
-% load([data_dir  task_file(1:8) '_3-preprocessed.mat'],'item_file','cnd_file');
-% [~,~,sequence_locations] = read_ListSQ_itm_and_cnd_files(item_file,cnd_file);
-%
-% H = define_spatial_filter(filter_width);
-%
-%
-% this_unit = [];
-% for unit = 1:size(unit_stats,2)
-%     if strcmpi(unit_stats{1,unit},unit_name)
-%         this_unit = unit;
-%         break
-%     end
-% end
-% imageX = 800;
-% imageY = 600;
-%
-% firing_rate_map = get_firing_rate_map({eyepos{unit},spike_times{unit}},imageX,imageY,binsize,H,Fs,'all'); %get firing rate map
-% maxfr = prctile(firing_rate_map(:),97.5);
-%
-% figure
-% %---plot firing rate map for all images---%
-% h = imagesc(firing_rate_map);
-% set(h,'alphadata',~isnan(firing_rate_map));
-% title('All images')
-% axis off
-% axis equal
-% colorbar
-% colormap('jet')
-% clim = caxis;
-% caxis([clim(1) maxfr])
-%
-% this_unit = [];
-% for unit = 1:size(unit_stats,2)
-%     if strcmpi(unit_stats{1,unit},unit_name)
-%         this_unit = unit;
-%         break
-%     end
-% end
-%
-% fix_locked_firing = list_fixation_locked_firing{this_unit};
-% fix_in_out = in_out{this_unit};
-% t = -twin1:twin2-1;
-%
-% num_in = sum(fix_in_out == 1);
-% num_out = sum(fix_in_out == 4);
-% downsample = floor(num_out/num_in)/2; %many more fixations outside so downsample to show ~equal number
-%
-% place_field_matrix = all_place_field_matrix{unit};
-% %Determine if any of the items are inside the matrix or not?
-% sequence_inside = NaN(2,4);
-% for c = 1:4
-%     for seq = 1:2
-%         yloc = imageY-sequence_locations{seq}(2,c);
-%         xloc = sequence_locations{seq}(1,c);
-%
-%         %---Simple version...is item in or out of field---%
-%         %             if place_field_matrix(yloc,xloc) == 1 %item is in field
-%         %                 sequence_inside(seq,c) = 1;
-%         %             elseif place_field_matrix(yloc,xloc) == 0 %item is out of the field
-%         %                 sequence_inside(seq,c) = 0;
-%         %             else %coverage unknown
-%         %                 sequence_inside(seq,c) = NaN;
-%         %             end
-%
-%         %---Less Simple Version...is item on border of field---%
-%         if place_field_matrix(yloc,xloc) == 1 %item is in field
-%             %then check if item is on border of field, if yes don't
-%             %count. Check if field extends at least 0.5 dva, should be
-%             %effected by coverage on edges items are at least 3.5 dva
-%             %away from border of image. Median eye tracking error (fixation accuracy)
-%             %on this task ~0.56 dva so should be ok with 0.5 and most
-%             %fixations within 1 dva
-%             if place_field_matrix(yloc-12,xloc) == 1 && place_field_matrix(yloc-12,xloc-12) == 1 &&...
-%                     place_field_matrix(yloc-12,xloc+12) == 1 && place_field_matrix(yloc+12,xloc) == 1 && ...
-%                     place_field_matrix(yloc+12,xloc-12) == 1 && place_field_matrix(yloc+12,xloc+12) == 1 && ...
-%                     place_field_matrix(yloc,xloc+12) == 1 && place_field_matrix(yloc,xloc-12) == 1
-%                 sequence_inside(seq,c) =1;
-%             else
-%                 sequence_inside(seq,c) = NaN; %don't want to use border for any category
-%             end
-%         else %check if item outside is also close to the border
-%             if place_field_matrix(yloc-12,xloc) == 1 || place_field_matrix(yloc-12,xloc-12) == 1 ||...
-%                     place_field_matrix(yloc-12,xloc+12) == 1 || place_field_matrix(yloc+12,xloc) == 1 || ...
-%                     place_field_matrix(yloc+12,xloc-12) == 1 || place_field_matrix(yloc+12,xloc+12) == 1 || ...
-%                     place_field_matrix(yloc,xloc+12) == 1 || place_field_matrix(yloc,xloc-12) == 1
-%                 sequence_inside(seq,c) =NaN; %don't want to use border for any category
-%             else
-%                 sequence_inside(seq,c) = 0;
-%             end
-%         end
-%     end
-% end
-%
-% figure
-% hold on
-% [~,~,~,y_list,~] = dofill(t,fix_locked_firing(fix_in_out == 1,:),'red',1,smval);%out-> in
-% dofill(t,fix_locked_firing(fix_in_out == 4,:),'blue',1,smval);%out->out
-% %     plot(t,list_95_curve{1,unit},'k','linewidth',2);%95% confidence interval
-% [pks,locs] = findpeaks(y_list,'MinPeakWidth',40);
-% locs(pks < 0.66*max(y_list)) = [];
-% pks(pks < 0.66*max(y_list)) = [];
-% plot(locs-twin1,pks,'*k')
-% yl = ylim;
-% if yl(1) < 0
-%     yl(1) = 0;
-%     ylim(yl);
-% end
-% plot([0 0],[yl(1) yl(2)],'k--')
-% %
-% xlim([-twin1 twin2]);
-% hold off
-% xlabel('Time from Fixation Start (ms)')
-% ylabel('Firing Rate (Hz)')
-% legend('out->in','out->out','Location','NorthWest')
-% set(gca,'Xtick',[-twin1 -twin1/2 0 twin1/2 twin1 3/2*twin1 twin2])
-% % title(sprintf(['n_{out->in} = ' num2str(sum(fix_in_out == 1))...
-% %     ', n_{out->out} = ' num2str(sum(fix_in_out == 4))]));
-% title(['Peak Firing Rate of ' num2str(pks,3) ' Hz at ' num2str(locs-twin1) ' ms'])
-% axis square
-%
-% %---Plot Place Field---%
-% colors = 'rg';
-% shapes = 'xo';
-%
-% figure
-% imagesc(all_place_field_matrix{unit});
-% colormap('gray')
-% hold on
-% for c = 1:4
-%     for seq = 1:2
-%         if ~isnan(sequence_inside(seq,c))
-%             plot(sequence_locations{seq}(1,c),imageY-sequence_locations{seq}(2,c),[colors(seq) shapes(seq)],'markersize',16)
-%         end
-%     end
-% end
-% hold off
-% xlim([0 800])
-% ylim([0 240])
-% axis equal
-% axis off
-% title(sprintf(['Place Field Location \n Area = ' num2str(area(unit),2) '%%']));
-%
-%
-% %---Plot Firing Rate Curves for Suquence Trials---%
-% which_sequence = all_which_sequence{unit};
-% seq_in_out = [];
-% fixation_firing = [];
-% for c = 1:4
-%     for seq = 1:2
-%         fixation_firing = [fixation_firing; ...
-%             sequence_fixation_locked_firing{c,unit}(which_sequence(trial_nums{c,unit}) == seq,:)];
-%         if  sequence_inside(seq,c) == 1;
-%             seq_in_out = [ seq_in_out ones(1,sum(which_sequence(trial_nums{c,unit}) == seq))];
-%         elseif isnan(sequence_inside(seq,c))
-%             seq_in_out = [ seq_in_out NaN(1,sum(which_sequence(trial_nums{c,unit}) == seq))];
-%         else
-%             seq_in_out = [ seq_in_out zeros(1,sum(which_sequence(trial_nums{c,unit}) == seq))];
-%         end
-%     end
-% end
-%
-% figure
-% hold on
-% dofill(t,fixation_firing(in_out_sequence{unit} == 1,:),'red',1,smval);
-% dofill(t,fixation_firing(in_out_sequence{unit} == 0,:),'blue',1,smval);
-% yl = ylim;
-% if yl(1) < 0
-%     yl(1) = 0;
-%     ylim(yl);
-% end
-% plot([0 0],[yl(1) yl(2)],'k--')
-% xlabel('Time from Fixation Start (ms)')
-% ylabel('Firing Rate (Hz)')
-% legend('Items Inside','Items Outside','Location','NorthWest')
-% if ~isnan(stats_across_tasks(3,unit))
-%     plot(stats_across_tasks(3,unit)-twin1,stats_across_tasks(4,unit),'*k')
-%     title(['Sequence Trials: peak of ' num2str(stats_across_tasks(4,unit),3) 'Hz @ ' ...
-%         num2str(stats_across_tasks(3,unit)-twin1) ' ms']);
-% else
-%     title(['Sequence Trials: No peak, max firing of ' num2str(max(seq_in_curve),3) 'Hz']);
-% end
-% hold off
-%
-%
-%
-% %---Plot Firing Rate Curves for Suquence vs Image Trials---%
-% figure
-% hold on
-% dofill(t(1:twin1+twin2),list_fixation_locked_firing{unit}(in_out{unit} == 1,:),'black',1,smval);%list out-> in
-% dofill(t,fixation_firing(in_out_sequence{unit} == 1,:),'green',1,smval);%sequence
-% yl = ylim;
-% if yl(1) < 0
-%     yl(1) = 0;
-%     ylim(yl);
-% end
-% plot([0 0],[yl(1) yl(2)],'k--')
-% hold off
-% xlabel('Time from Fixation Start (ms)')
-% ylabel('Firing Rate (Hz)')
-% legend('Images','Sequences','Location','NorthWest')
-%
-% if stats_across_tasks(2,unit) > stats_across_tasks(4,unit)
-%     title(['Contextual Gain: ' num2str(100*(stats_across_tasks(2,unit)/stats_across_tasks(4,unit)),3) '%'])
-% else
-%     title(['Contextual Gain: ' num2str(-100*(stats_across_tasks(4,unit)/stats_across_tasks(2,unit)),3) '%'])
-% end
+xlim([-twin1 twin2]);
+hold off
+xlabel('Time from Fixation Start (ms)')
+ylabel('Firing Rate (Hz)')
+legend('out->in','out->out','Location','NorthWest')
+set(gca,'Xtick',[-twin1 -twin1/2 0 twin1/2 twin1 3/2*twin1 twin2])
+% title(sprintf(['n_{out->in} = ' num2str(sum(fix_in_out == 1))...
+%     ', n_{out->out} = ' num2str(sum(fix_in_out == 4))]));
+title(['Peak Firing Rate of ' num2str(pks,3) ' Hz at ' num2str(locs-twin1) ' ms'])
+axis square
+
+%---Plot Place Field---%
+colors = 'rg';
+shapes = 'xo';
+
+figure
+imagesc(all_place_field_matrix{unit});
+colormap('gray')
+hold on
+for c = 1:4
+    for seq = 1:2
+        if ~isnan(sequence_inside(seq,c))
+            plot(sequence_locations{seq}(1,c),imageY-sequence_locations{seq}(2,c),[colors(seq) shapes(seq)],'markersize',16)
+        end
+    end
+end
+hold off
+xlim([0 800])
+ylim([0 240])
+axis equal
+axis off
+title(sprintf(['Place Field Location \n Area = ' num2str(area(unit),2) '%%']));
+
+
+%---Plot Firing Rate Curves for Suquence Trials---%
+which_sequence = all_which_sequence{unit};
+seq_in_out = [];
+fixation_firing = [];
+for c = 1:4
+    for seq = 1:2
+        fixation_firing = [fixation_firing; ...
+            sequence_fixation_locked_firing{c,unit}(which_sequence(trial_nums{c,unit}) == seq,:)];
+        if  sequence_inside(seq,c) == 1;
+            seq_in_out = [ seq_in_out ones(1,sum(which_sequence(trial_nums{c,unit}) == seq))];
+        elseif isnan(sequence_inside(seq,c))
+            seq_in_out = [ seq_in_out NaN(1,sum(which_sequence(trial_nums{c,unit}) == seq))];
+        else
+            seq_in_out = [ seq_in_out zeros(1,sum(which_sequence(trial_nums{c,unit}) == seq))];
+        end
+    end
+end
+
+figure
+hold on
+dofill(t,fixation_firing(in_out_sequence{unit} == 1,:),'red',1,smval);
+dofill(t,fixation_firing(in_out_sequence{unit} == 0,:),'blue',1,smval);
+yl = ylim;
+if yl(1) < 0
+    yl(1) = 0;
+    ylim(yl);
+end
+plot([0 0],[yl(1) yl(2)],'k--')
+xlabel('Time from Fixation Start (ms)')
+ylabel('Firing Rate (Hz)')
+legend('Items Inside','Items Outside','Location','NorthWest')
+if ~isnan(stats_across_tasks(3,unit))
+    plot(stats_across_tasks(3,unit)-twin1,stats_across_tasks(4,unit),'*k')
+    title(['Sequence Trials: peak of ' num2str(stats_across_tasks(4,unit),3) 'Hz @ ' ...
+        num2str(stats_across_tasks(3,unit)-twin1) ' ms']);
+else
+    title(['Sequence Trials: No peak, max firing of ' num2str(max(seq_in_curve),3) 'Hz']);
+end
+hold off
+
+
+
+%---Plot Firing Rate Curves for Suquence vs Image Trials---%
+figure
+hold on
+dofill(t(1:twin1+twin2),list_fixation_locked_firing{unit}(in_out{unit} == 1,:),'black',1,smval);%list out-> in
+dofill(t,fixation_firing(in_out_sequence{unit} == 1,:),'green',1,smval);%sequence
+yl = ylim;
+if yl(1) < 0
+    yl(1) = 0;
+    ylim(yl);
+end
+plot([0 0],[yl(1) yl(2)],'k--')
+hold off
+xlabel('Time from Fixation Start (ms)')
+ylabel('Firing Rate (Hz)')
+legend('Images','Sequences','Location','NorthWest')
+
+if stats_across_tasks(2,unit) > stats_across_tasks(4,unit)
+    title(['Contextual Gain: ' num2str(100*(stats_across_tasks(2,unit)/stats_across_tasks(4,unit)),3) '%'])
+else
+    title(['Contextual Gain: ' num2str(-100*(stats_across_tasks(4,unit)/stats_across_tasks(2,unit)),3) '%'])
+end
 
 %% Saccade Direction Stuff
 
@@ -722,3 +742,296 @@ end
 %         '(' num2str(spatial_info.spatialstability_even_odd_prctile(1,unit),3) '%%)'];
 % end
 % title(sprintf(title_str));
+
+%% Visual & Memory Responses
+% %plots fixation aligned rasters so that can export to eps
+
+set(gcf,'renderer','Painters')
+
+data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+
+task_file = 'TO160114_3';
+unit_name = 'sig004b';
+
+load([data_dir  task_file(1:8) '-ListSQ-Visual_Response_Memory_results.mat']);
+load([data_dir  task_file(1:8) '-ListSQ-Visual_Response_results.mat']);
+
+this_unit = find(contains(unit_names,unit_name));
+if isempty(this_unit)
+    error('no unit found')
+end
+
+
+t12 = -twin1:twin2-1;
+t13 = -twin1:twin3-1;
+t133 = -twin1:twin3-1+250;
+t3 = -twin3:twin3-1;
+t14 = -twin1:twin4-1;
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%---Visual Response---%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%---Plot Firing rate locked to Image On 1 second window---%
+figure
+subplot(2,2,1)
+hold on
+[~,~,~,y3] =dofill(t12,time_lock_firing{this_unit,3},'black',1,smval); %smoothed image onset curve
+plot([-twin1 twin2],[baseline_firing_rate(1,this_unit) baseline_firing_rate(1,this_unit)],'k--')%pre-image "baseline" line
+hold off
+ylabel('Firing Rate (Hz)')
+xlabel('Time from Image On (ms)')
+xlim([-twin1 twin2])
+if epoch_data.rate_prctile(this_unit,3) > 90 || epoch_data.temporalstability_prctile(this_unit,3) > 90
+    title(['bit ' num2str(epoch_data.rate_prctile(this_unit,3),3) '% ' ...
+        '\rho = ' num2str(epoch_data.temporalstability(this_unit,3),2) ' ' ...
+        num2str(epoch_data.temporalstability_prctile(this_unit,3),3)  '%' ])
+end
+box off
+
+%---Plot raster for image on 1 second window---%
+%in case we want to look at latency or something
+subplot(2,2,3)
+[trial,time] = find(time_lock_firing{this_unit,3} == 1); %novel
+if ~isempty(trial)
+    plot(time-twin1,trial,'.k')
+    xlim([-twin1 twin2])
+    ylim([0 max(trial)+1]);
+end
+ylabel('Trial #')
+xlabel('Time from Image On (ms)')
+box off
+
+%---Firing rate locked to Image On 5 second window---%
+subplot(2,2,2)
+[~,~,~,y4] =dofill(t14,time_lock_firing{this_unit,5},'black',1,smval2); %smoothed firing rate curve
+hold on
+plot([-twin1 twin4],[baseline_firing_rate(1,this_unit) baseline_firing_rate(1,this_unit)],'k--')%pre-image "baseline" line
+hold off
+ylabel('Firing Rate (Hz)')
+xlabel('Time from Image On (ms)')
+xlim([-twin1 twin4])
+if epoch_data.rate_prctile(this_unit,5) > 90 || epoch_data.temporalstability_prctile(this_unit,5) > 90
+    title(['bit ' num2str(epoch_data.rate_prctile(this_unit,5),3) '% ' ...
+        '\rho = ' num2str(epoch_data.temporalstability(this_unit,5),2) ' ' ...
+        num2str(epoch_data.temporalstability_prctile(this_unit,5),3)  '%' ])
+end
+box off
+
+%---Raster for Image On 5 second window---%
+subplot(2,2,4)
+[trial,time] = find(time_lock_firing{this_unit,5} == 1);
+if ~isempty(trial)
+    plot(time-twin1,trial,'.k')
+    xlim([-twin1 twin4])
+    ylim([0 max(trial)+1]);
+end
+ylabel('Trial #')
+xlabel('Time from Image On (ms)')
+box off
+
+%---Scale plots to be the same and plot sig. difference from pre-image "baseline"---%
+ymin = 0.85*min([y3 y4]);
+if ymin < 0.1
+    ymin = 0;
+end
+ymax = 1.2*max([y3 y4]);
+if ymin ~= ymax
+    
+    %short 1 second window
+    subplot(2,2,1)
+    hold on
+    ylim([ymin ymax])
+    gaps = findgaps(find(( sig_visual_response(this_unit,1:twin1+twin2))));
+    if ~isempty(gaps)
+        for g = 1:size(gaps,1)
+            gp = gaps(g,:);
+            gp(gp == 0) = [];
+            h = fill([min(gp) max(gp) max(gp) min(gp) min(gp)]-twin1,...
+                [ymin ymin ymax ymax ymin],'k');
+            uistack(h,'down')
+            set(h,'facealpha',.25,'EdgeColor','None')
+        end
+    end
+    hold off
+    
+    %long 5 second window
+    subplot(2,2,2)
+    hold on
+    ylim([ymin ymax])
+    gaps = findgaps(find((sig_visual_response(this_unit,:))));
+    if ~isempty(gaps)
+        for g = 1:size(gaps,1)
+            gp = gaps(g,:);
+            gp(gp == 0) = [];
+            h = fill([min(gp) max(gp) max(gp) min(gp) min(gp)]-twin1,...
+                [ymin ymin ymax ymax ymin],'k');
+            uistack(h,'down')
+            set(h,'facealpha',.25,'EdgeColor','None')
+        end
+    end
+    hold off
+end
+
+n_str = [' Image Onset, n_ =' num2str(size(time_lock_firing{this_unit,1},1))];
+if multiunit(this_unit)
+    subtitle(['Multiunit ' unit_names{this_unit} n_str]);
+else
+    subtitle(['' unit_names{this_unit} n_str]);
+end
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%---Memory Response---%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%---Plot raster for image on-short window---%
+subplot(2,3,1)
+[trial,time] = find(time_lock_firing{this_unit,3}(nvr{this_unit} == 1 | nvr{this_unit}== 2,:) == 1); %all pairs
+if ~isempty(trial)
+    plot(time-twin1,trial,'.k')
+    xlim([-twin1 twin2])
+    ylim([0 max(trial)+1]);
+end
+ylabel('Trial #')
+xlabel('Time from Image On (ms)')
+box off
+
+%---Plot Novel/Repeat raster for image on-short window---%
+subplot(2,3,2)
+hold on
+[trial,time] = find(time_lock_firing{this_unit,3}(nvr{this_unit} == 1,:) == 1); %novel
+if ~isempty(trial)
+    plot(time-twin1,trial,'.b')
+    xlim([-twin1 twin2])
+    ylim([0 max(trial)+1]);
+    b4 = max(trial);
+else
+    b4 = 0;
+end
+[trial,time] = find(time_lock_firing{this_unit,3}(nvr{this_unit} == 2,:) == 1); %repeat
+if ~isempty(trial)
+    trial = trial+b4;
+    plot(time-twin1,trial,'.r')
+    xlim([-twin1 twin2])
+    ylim([0 max(trial)+1]);
+end
+hold off
+ylabel('Image #')
+xlabel('Time from Image On (ms)')
+box off
+
+%---Plot Firing rate locked to Image On-short window---%
+subplot(2,3,3)
+hold on
+dofill(t12,time_lock_firing{this_unit,3},'black',1,smval); %all trials
+dofill(t12,time_lock_firing{this_unit,3}(nvr{this_unit} == 1,:),'blue',1,smval); %novel trials
+dofill(t12,time_lock_firing{this_unit,3}(nvr{this_unit} == 2,:),'red',1,smval); %repeat trials
+hold off
+ylabel('Firing Rate (Hz)')
+xlabel('Time from Image On (ms)')
+xlim([-twin1 twin2])
+if epoch_data.rate_prctile(this_unit,3) > 95 && epoch_data.temporalstability_prctile(this_unit,3) > 95
+    title(['bit ' num2str(epoch_data.rate_prctile(this_unit,3),3) '% ' ...
+        '\rho = ' num2str(epoch_data.temporalstability(this_unit,3),2) ' ' ...
+        num2str(epoch_data.temporalstability_prctile(this_unit,3),3)  '%' ])
+end
+ylims(1,:) = ylim;
+box off
+
+%---Long 5 Second Window---%
+subplot(2,3,4)
+[trial,time] = find(time_lock_firing{this_unit,5}(nvr{this_unit} == 1 | nvr{this_unit}== 2,:) == 1);%all pairs
+if ~isempty(trial)
+    plot(time-twin1,trial,'.k')
+    xlim([-twin1 twin4])
+    ylim([0 max(trial)+1]);
+end
+ylabel('Trial #')
+xlabel('Time from Image On (ms)')
+box off
+
+%---Plot Novel/Repeat raster for image on-long window---%
+subplot(2,3,5)
+hold on
+[trial,time] = find(time_lock_firing{this_unit,5}(nvr{this_unit} == 1,:) == 1); %novel
+if ~isempty(trial)
+    plot(time-twin1,trial,'.b')
+    xlim([-twin1 twin4])
+    ylim([0 max(trial)+1]);
+    b4 = max(trial);
+else
+    b4 = 0;
+end
+[trial,time] = find(time_lock_firing{this_unit,5}(nvr{this_unit} == 2,:) == 1); %repeat
+if ~isempty(trial)
+    trial = trial+b4;
+    plot(time-twin1,trial,'.r')
+    xlim([-twin1 twin4])
+    ylim([0 max(trial)+1]);
+end
+hold off
+ylabel('Image #')
+xlabel('Time from Image On (ms)')
+box off
+
+%---Plot Firing rate locked to Long Image On---%
+subplot(2,3,6)
+dofill(t14,time_lock_firing{this_unit,5},'black',1,smval2); %all trials
+dofill(t14,time_lock_firing{this_unit,5}(nvr{this_unit} == 1,:),'blue',1,smval2); %novel trials
+dofill(t14,time_lock_firing{this_unit,5}(nvr{this_unit} == 2,:),'red',1,smval2); %repeat trials
+hold off
+ylabel('Firing Rate (Hz)')
+xlabel('Time from Image On (ms)')
+xlim([-twin1 twin4])
+if epoch_data.rate_prctile(this_unit,5) > 95 && epoch_data.temporalstability_prctile(this_unit,5) > 95
+    title(['bit ' num2str(epoch_data.rate_prctile(this_unit,5),3) '% ' ...
+        '\rho = ' num2str(epoch_data.temporalstability(this_unit,5),2) ' ' ...
+        num2str(epoch_data.temporalstability_prctile(this_unit,5),3)  '%' ])
+end
+ylims(2,:) = ylim;
+box off
+
+
+%---Set plots to same scale---%
+ymax = max(ylims(:,2));
+ymin = min(ylims(:,1));
+ymin(ymin < 0) = 0;
+
+subplot(2,3,3)
+ylim([ymin ymax])
+subplot(2,3,6)
+ylim([ymin ymax])
+
+%---Plot Significant Time Points---%
+subplot(2,3,3)
+hold on
+gaps = findgaps(find(sig_short{this_unit}));
+if ~isempty(gaps)
+    for g = 1:size(gaps,1)
+        gp = gaps(g,:);
+        gp(gp == 0) = [];
+        h = fill([min(gp) max(gp) max(gp) min(gp) min(gp)]-twin1,...
+            [ymin ymin ymax ymax ymin],'k');
+        uistack(h,'down')
+        set(h,'facealpha',.25,'EdgeColor','None')
+    end
+end
+hold off
+
+subplot(2,3,6)
+hold on
+gaps = findgaps(find(sig_long{this_unit}));
+if ~isempty(gaps)
+    for g = 1:size(gaps,1)
+        gp = gaps(g,:);
+        gp(gp == 0) = [];
+        h = fill([min(gp) max(gp) max(gp) min(gp) min(gp)]-twin1,...
+            [ymin ymin ymax ymax ymin],'k');
+        uistack(h,'down')
+        set(h,'facealpha',.25,'EdgeColor','None')
+    end
+end
+hold off
+
+subtitle(['Visual Response/Memory ' task_file(1:8) '_' unit_names{this_unit} ', n_ = ' num2str(sum(nvr{this_unit} == 1))]);

@@ -15,7 +15,7 @@
 clar %clear,clc
 
 %where to store spatial analysis figure copies
-summary_directory = 'C:\Users\seth.koenig\Desktop\Significant Units\Spatial Analysis\';
+summary_directory = 'C:\Users\sethk\OneDrive\Significant Units\Spatial Analysis\';
 if ~isdir(summary_directory)
     mkdir(summary_directory)
 end
@@ -73,22 +73,16 @@ all_context_gain2 = [];%gain list_fr/seq_fr
 
 monkeys = {'Vivian','Tobii'};
 figure_dir = {};
-for monk =2:-1:1
+for monk = 2:-1:1
     monkey = monkeys{monk};
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %---Read in Excel Sheet for Session data---%%%
-    %only need to run when somethings changed or sessions have been added
-     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %---Read in Excel Sheet for Session data---%%%
-    %only need to run when somethings changed or sessions have been added
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %---Read in Excel Sheet for Session data---%%%
     %only need to run when somethings changed or sessions have been added
     if strcmpi(monkey,'Vivian')
         excel_dir = 'P:\eblab\PLX files\Vivian\';
         excel_file = [excel_dir 'Vivian_Recording_Notes-ListSQ.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\PW Recording Files\';
-        figure_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\PW Figures\';
+        data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PW Recording Files\';
+        figure_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PW Figures\';
         
         %listsq_read_excel(data_dir,excel_file);
         load([data_dir 'Across_Session_Unit_Data_Vivian.mat'])
@@ -99,8 +93,8 @@ for monk =2:-1:1
     elseif strcmpi(monkey,'Tobii')
         excel_dir = 'P:\eblab\PLX files\Tobii\';
         excel_file = [excel_dir 'Tobii_recordingnotes.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
-        figure_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\TO Figures\';
+        data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+        figure_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Figures\';
         
         predict_rt = 135;%ms prediction 5-percentile
         chamber_zero = [7.5 15]; %AP ML, his posertior hippocampus appears slightly shorter/more compressed than atlas
@@ -109,6 +103,7 @@ for monk =2:-1:1
         load([data_dir 'Across_Session_Unit_Data_Tobii.mat'])
         session_data(end) = [];%last file doesn't have strobe signal working so have no timing singnal :(
     end
+
     
     for sess = 1:length(session_data)
         %read in task file data
@@ -587,6 +582,9 @@ title('All Fixations Sorted Seperately')
 caxis([-std(vals(:)) 1]) %set minumun to standard deviation of baseline since some neurons are greatly inhibited
 colorbar
 
+names = all_place_cell_unit_names(place_order);
+
+
 %% Population Average in Field Firing Rate Curve
 [m,i] = max(nanmean(all_in_rates));
 figure
@@ -625,7 +623,6 @@ for n = 1:size(all_in_rates,1)
     end
     
 end
-%%
 
 figure
 subplot(1,2,1)
@@ -641,10 +638,13 @@ axis square
 
 subplot(1,2,2)
 histogram(FWHM,25)
+hold on
+plot([nanmedian(FWHM) nanmedian(FWHM)],[0 14],'k--')
+hold off
 xlabel('FWHM @ peak')
 ylabel('Count')
 title(['Median FWHM = ' num2str(nanmedian(FWHM),3) ' ms'])
-xlim([25 275])
+xlim([25 300])
 box off
 axis square
 
@@ -791,12 +791,6 @@ xlim([-twin1 twin2])
 colorbar
 
 names = all_place_cell_unit_names(place_order);
-%%
-for n = 1:length(names)
-    if strcmpi(names{n},'TO160515_3_sig004d')
-        disp(n)
-    end
-end
     
 %% AP axis vs Latency of Response
 avg_delay = zeros(1,30);
