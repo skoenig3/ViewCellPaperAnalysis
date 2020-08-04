@@ -15,7 +15,7 @@
 clar %clear,clc
 
 %where to store spatial analysis figure copies
-summary_directory = 'C:\Users\sethk\OneDrive\Significant Units\Spatial Analysis\';
+summary_directory = 'C:\Users\sethk\Desktop\Significant Units\Spatial Analysis\';
 if ~isdir(summary_directory)
     mkdir(summary_directory)
 end
@@ -33,6 +33,8 @@ all_place_cell_unit_names = {}; %place cell unit names
 all_place_cell_monkeys = []; %1s and 2s
 place_cell_AP_location = []; %AP location of recorded place cell
 place_cell_subregion = []; %e.g. CA3 or CA1
+place_cell_putative_EI = [];%putative inhibitor or excitatory neuron
+place_cell_whole_session_FR = [];%whole session (all trial/task) average firing rate
 non_place_cell_subregion = [];
 
 n_in = []; %number of fixations ?->in
@@ -51,24 +53,13 @@ place_coverage = {}; %place field locations
 coverage = {}; %eye data coverage for place cells
 
 %---Place Cell Firing Rate Curves for List---%
-all_in_rates = [];%fixations out-> in
+all_in_rates = [];%fixations out-> in (the main one)
 all_in_minus_out_rates = [];%out-> in minus out-> out
 all_out_rates = []; %fixaiton out-> out normalized by max of out->out
 all_fixation_rates = [];%all fixaions normalized by max of all fixations
 all_list_peak_times = [];%time of peak firing rate of place cells for out-> in fixations
 sig_p_list = []; %whether fixation firing rates were reliably different for in vs out for list
 all_peak_list = []; %peak firing rate during list
-all_list_peak_time = [];%peak firing time list
-
-%---Firing Rate Curve Properties for Sequence Task---%
-sig_p_seq = []; %whether firing rates were significantly different for in vs out for seq
-all_peak_seq = []; %peak firing rate during seq
-all_seq_peak_times = [];%peak firing time seq
-all_seq_firing_curves = [];
-
-%---Firing Rates Between Sequence and List Tasks---%
-all_context_gain = []; %change in firing rate (list_fr-seq_fr)/list_fr
-all_context_gain2 = [];%gain list_fr/seq_fr
 
 
 monkeys = {'Vivian','Tobii'};
@@ -81,8 +72,8 @@ for monk = 2:-1:1
     if strcmpi(monkey,'Vivian')
         excel_dir = 'P:\eblab\PLX files\Vivian\';
         excel_file = [excel_dir 'Vivian_Recording_Notes-ListSQ.xlsx']; %recording notes
-        data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PW Recording Files\';
-        figure_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PW Figures\';
+        data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\PW Recording Files\';
+        figure_dir = 'D:\MATLAB\ViewCellPaperAnalysis\PW Figures\';
         
         %listsq_read_excel(data_dir,excel_file);
         load([data_dir 'Across_Session_Unit_Data_Vivian.mat'])
@@ -93,8 +84,8 @@ for monk = 2:-1:1
     elseif strcmpi(monkey,'Tobii')
         excel_dir = 'P:\eblab\PLX files\Tobii\';
         excel_file = [excel_dir 'Tobii_recordingnotes.xlsx']; %recording notes
-        data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
-        figure_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Figures\';
+        data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+        figure_dir = 'D:\MATLAB\ViewCellPaperAnalysis\TO Figures\';
         
         predict_rt = 135;%ms prediction 5-percentile
         chamber_zero = [7.5 15]; %AP ML, his posertior hippocampus appears slightly shorter/more compressed than atlas
@@ -115,7 +106,8 @@ for monk = 2:-1:1
         
         %load task file data
         load([data_dir task_file(1:end-11) '-preprocessed.mat'],'valid_trials',...
-            'stability_attribute','cfg','hdr','data');
+            'stability_attribute','cfg','hdr','data','excitatory_inhibitory',...
+            'whole_session_mean_firing_rate');
         
         %get unit data
         [multiunit,unit_stats,num_units] = get_unit_names(cfg,hdr,data,unit_names,...
@@ -170,6 +162,9 @@ for monk = 2:-1:1
                     chan = str2double(unit_stats{1,unit}(6));
                     place_cell_subregion = [place_cell_subregion vals{1}(chan)];
                 end
+                
+                place_cell_putative_EI = [place_cell_putative_EI excitatory_inhibitory(unit)];%putative inhibitor or excitatory neuron
+                place_cell_whole_session_FR = [place_cell_whole_session_FR whole_session_mean_firing_rate(unit)];%whole session (all trial/task) average firing rate
                 
                 %---Spatial Correlation Values for Place cells---%
                 all_place_cell_spatial_corrs = [all_place_cell_spatial_corrs spatial_info.spatialstability_halves(unit)];
@@ -252,150 +247,6 @@ for monk = 2:-1:1
                     sig_p_list = [sig_p_list 0];
                 end
                 
-                %---Firing Rate Curve Properties for Sequence Task---%
-                if ~isnan(stats_across_tasks(4,unit))
-                    all_peak_seq = [all_peak_seq stats_across_tasks(4,unit)]; %peak firing rate during seq
-                end
-                all_seq_peak_times = [all_seq_peak_times stats_across_tasks(3,unit)];%peak firing time seq
-
-                %---Firing Rates Between Sequence and List Tasks---%
-                %change in firing rate (list_fr-seq_fr)/list_fr
-                all_context_gain = [all_context_gain (stats_across_tasks(2,unit)-stats_across_tasks(4,unit))/stats_across_tasks(2,unit)];
-                all_context_gain2 = [all_context_gain2 stats_across_tasks(2,unit)/stats_across_tasks(4,unit)];%gain list_fr/seq_fr
-                
-                %indexed weirdly so have to do it this way
-                all_which_sequence = laundry(all_which_sequence);
-                fixation_firing = [];
-                for c = 1:4
-                    for seq = 1:2
-                        fixation_firing = [fixation_firing; sequence_fixation_locked_firing{c,unit}(all_which_sequence{unit}(trial_nums{c,unit}) == seq,:)];
-                    end
-                end
-                
-                if ~isempty(in_out_sequence{unit}) %at least 1 item in field and 1 item out of field
-                    if  isempty(sequence_sig_times{unit}) %no significant difference
-                        sig_p_seq = [sig_p_seq 0];
-                        all_seq_firing_curves = [all_seq_firing_curves; NaN(1,twin1+twin2)];
-                    else
-                        seq_in_out = in_out_sequence{unit};
-                        in_curve = nandens(fixation_firing(seq_in_out == 1,:),smval,'gauss',Fs,'nanflt');%smoothed firing rates for in field fixations
-                        out_curve = nandens(fixation_firing(seq_in_out == 0,:),smval,'gauss',Fs,'nanflt');%smoothed firing rates for out of field fixations
-                        pos_ind = (in_curve-out_curve) > 0; %find expected in field > out of field
-                        pos_ind(sequence_sig_times{unit} == 0) = 0; %remove times that are not significant
-                        pos_ind = find(pos_ind);
-                        neg_ind =  (in_curve-out_curve) < 0 ; %find unexpected in field < out of field
-                        neg_ind(sequence_sig_times{unit} == 0) = 0; %remove times that are not significant
-                        neg_ind = find(neg_ind); 
-                        
-                        if isnan(stats_across_tasks(4,unit))
-                            all_peak_seq = [all_peak_seq max(in_curve)]; %peak firing rate during seq
-                        end
-                        
-                        in_curve = in_curve-nanmean(in_curve(1:twin1));
-                        in_curve = in_curve/max(in_curve);
-                        all_seq_firing_curves = [all_seq_firing_curves; in_curve];
-                        
-                        %find contiguous positive significant regions that
-                        %at least 2std in length
-                        rmv = [];
-                        gaps_pos = findgaps(pos_ind); %find breaks
-                        total_pos = 0;%total postive time
-                        if ~isempty(gaps_pos)
-                            for g = 1:size(gaps_pos,1)
-                                gp = gaps_pos(g,:);
-                                gp(gp == 0) = [];
-                                if length(gp) < 50;%1.5*smval %3  standard deviations
-                                    rmv = [rmv g];
-                                else
-                                    total_pos = total_pos+length(gp);
-                                end
-                            end
-                        end
-                        if ~isempty(rmv)
-                            gaps_pos(rmv,:) = []; %remove time points that are too short
-                        end
-                        
-                        %find contiguous positive significant regions that
-                        %at least 2std in length
-                        rmv = [];
-                        gaps_neg = findgaps(neg_ind);  %find breaks
-                        total_neg = 0;%total negative time
-                        if ~isempty(gaps_neg)
-                            for g = 1:size(gaps_neg,1)
-                                gp = gaps_neg(g,:);
-                                gp(gp == 0) = [];
-                                if length(gp) < 50;%1.5*smval %3  standard deviations
-                                    rmv = [rmv g]; %remove time points that are too short
-                                else
-                                    total_neg = total_neg+length(gp);
-                                end
-                            end
-                        end
-                        if ~isempty(rmv)
-                            gaps_neg(rmv,:) = [];
-                        end
-                        
-                        if total_pos > 0 && total_neg == 0 %if only expected result
-                            sig_p_seq = [sig_p_seq 1];
-                        elseif total_pos == 0 && total_neg == 0 %no result
-                            sig_p_seq = [sig_p_seq 0];
-                        elseif total_pos > 0 && total_neg > 0 %need to probe further since mixed result
-                            
-                            %find if negative result is before the start of
-                            %the fixation since this could be from ITI or
-                            %from another fixation (which could be
-                            %influenced by this one). Both cases have been
-                            %visually confirmed!
-                            rmv = [];
-                            for g = 1:size(gaps_neg,1)
-                                gp = gaps_neg(g,:);
-                                gp(gp == 0) = [];
-                                if any(gp < twin1)  %contigous negative started before fixation
-                                    rmv = [rmv g];
-                                end
-                            end
-                            gaps_neg(rmv,:) = [];
-                            total_neg = sum(sum(gaps_neg > 0));
-                            
-                            if isempty(gaps_neg) %so only negative time is before fixation so call postive effect
-                                sig_p_seq = [sig_p_seq 1];
-                            elseif total_pos > 2*total_neg %much more positive than neg so call positive effect
-                                sig_p_seq = [sig_p_seq 1];
-                                disp('much more positive')
-                            elseif 2*total_pos < total_neg %much more negative than positive so call negative effect
-                                sig_p_seq = [sig_p_seq -1];
-                                disp('much more negative')
-                            else %not sure so remove
-                                sig_p_seq = [sig_p_seq NaN];
-                                disp('unsure so removed')
-                            end
-                        elseif total_neg > 0 %if only negative result
-                            sig_p_seq = [sig_p_seq -1];
-                        else
-                            error('What else could happen')
-                        end
-                    end
-                else
-                    sig_p_seq = [sig_p_seq NaN]; %no shapes in and out of field so keep parallel structure
-                    all_peak_seq = [all_peak_seq NaN];
-                    all_seq_firing_curves = [all_seq_firing_curves; NaN(1,twin1+twin2)];
-                end
-                
-                if~isnan(sig_p_seq(end))
-                    if isnan(all_context_gain2(end)) %can happen if no definable peaks so set as ratio of maximum firing rates
-                        all_context_gain2(end) =  all_peak_list(end)/all_peak_seq(end);
-                    elseif all_context_gain2(end) ~= all_peak_list(end)/all_peak_seq(end);
-                        error('Contextual gain 2 should be list peak/sequence peak')
-                    end
-                    
-                    if isnan(all_context_gain(end)) %can happen if no definable peaks so set as ratio of maximum firing rates
-                        all_context_gain(end) = (all_peak_list(end)-all_peak_seq(end))/all_peak_list(end);
-                    elseif  all_context_gain(end) ~= (all_peak_list(end)-all_peak_seq(end))/all_peak_list(end)
-                        error('Context gain should be the change in firing rate')
-                    end
-                end
-                
-                
             elseif ~isnan(spatial_info.shuffled_rate_prctile(unit))
                 
                 %---Misc Parameters---%
@@ -441,34 +292,21 @@ end
 %     sub_dir2 = 'Spatial Analysis\';
 %     
 %     name1 = [all_place_cell_unit_names{unit} '_place_cell_fixation_analysis.png'];
-%     name2 = [all_place_cell_unit_names{unit} '_place_cell_Sequence_InSideOutside.png'];
 %     name3 = [all_place_cell_unit_names{unit} '_List_spatial_analysis.png'];
 %     
 %     if sig_p_list(unit) == 0 %not reliable
 %         copyfile([figure_dir{all_place_cell_monkeys(unit)} sub_dir1 name1],...
 %             [summary_directory 'Not reliable\' name1])
-%         if ~isnan(sig_p_seq(unit))
-%             copyfile([figure_dir{all_place_cell_monkeys(unit)} sub_dir1 name2],...
-%                 [summary_directory 'Not reliable\' name2])
-%         end
 %         copyfile([figure_dir{all_place_cell_monkeys(unit)} sub_dir2 name3],...
 %             [summary_directory 'Not reliable\' name3])
 %     elseif isnan(all_list_peak_times(unit))%no peak in firing rate detected
 %         copyfile([figure_dir{all_place_cell_monkeys(unit)} sub_dir1 name1],...
 %             [summary_directory 'No peak\' name1])
-%         if ~isnan(sig_p_seq(unit))
-%             copyfile([figure_dir{all_place_cell_monkeys(unit)} sub_dir1 name2],...
-%                 [summary_directory 'No peak\' name2])
-%         end
 %         copyfile([figure_dir{all_place_cell_monkeys(unit)} sub_dir2 name3],...
 %             [summary_directory 'No peak\' name3])
 %     else %passes all criterion
 %         copyfile([figure_dir{all_place_cell_monkeys(unit)} sub_dir1 name1],...
 %             [summary_directory name1])
-%         if ~isnan(sig_p_seq(unit))
-%             copyfile([figure_dir{all_place_cell_monkeys(unit)} sub_dir1 name2],...
-%                 [summary_directory name2])
-%         end
 %         copyfile([figure_dir{all_place_cell_monkeys(unit)} sub_dir2 name3],...
 %             [summary_directory name3])
 %     end
@@ -484,17 +322,13 @@ all_place_cell_unit_names(sig_p_list == 0) = [];
 coverage(sig_p_list == 0) = [];
 place_coverage(sig_p_list == 0) = [];
 place_field_area(sig_p_list == 0) = [];
-all_context_gain(sig_p_list == 0) = [];
-all_context_gain2(sig_p_list == 0) = [];
 all_peak_list(sig_p_list == 0) = [];
-all_peak_seq(sig_p_list == 0) = [];
-all_seq_peak_times(sig_p_list == 0) = [];
-sig_p_seq(sig_p_list == 0) = [];
 all_list_peak_times(sig_p_list == 0) = [];
 all_in_minus_out_rates(sig_p_list == 0,:) = [];
 place_cell_AP_location(sig_p_list == 0) = [];
 place_cell_subregion(sig_p_list == 0) = [];
-all_seq_firing_curves(sig_p_list == 0,:) =[];
+place_cell_putative_EI(sig_p_list == 0) = [];
+place_cell_whole_session_FR(sig_p_list == 0) = [];
 sig_p_list(sig_p_list == 0) = [];
 
 %remove neurons without a definitive peak
@@ -505,18 +339,15 @@ all_place_cell_unit_names(isnan(all_list_peak_times)) = [];
 coverage(isnan(all_list_peak_times)) = [];
 place_coverage(isnan(all_list_peak_times)) = [];
 place_field_area(isnan(all_list_peak_times)) = [];
-all_context_gain(isnan(all_list_peak_times)) = [];
-all_context_gain2(isnan(all_list_peak_times)) = [];
-all_peak_seq(isnan(all_list_peak_times)) = [];
-all_seq_peak_times(isnan(all_list_peak_times)) = [];
-sig_p_seq(isnan(all_list_peak_times)) = [];
 sig_p_list(isnan(all_list_peak_times)) = [];
 all_peak_list(isnan(all_list_peak_times)) = [];
 all_in_minus_out_rates(isnan(all_list_peak_times),:) = [];
 place_cell_AP_location(isnan(all_list_peak_times)) = [];
 place_cell_subregion(isnan(all_list_peak_times)) = [];
-all_seq_firing_curves(isnan(all_list_peak_times),:) = [];
+place_cell_putative_EI(isnan(all_list_peak_times)) = [];
+place_cell_whole_session_FR(isnan(all_list_peak_times)) = [];
 all_list_peak_times(isnan(all_list_peak_times)) = [];
+
 %% Plot Psuedo-Population Firing Rate Curves
 figure
 
@@ -722,38 +553,6 @@ title(['Median_{place cell} \rho_{1/2} = ' num2str(median(all_place_cell_spatial
 box off
 axis square
 [~,p] = ttest2(all_place_cell_spatial_corrs,all_non_place_cell_spatial_corrs);
-%% Population Contextual Gain
-
-disp([num2str(sum(~isnan(sig_p_seq))) ' View Cells with 1+ item in field & 1+ item out of field'])
-disp([num2str(sum(sig_p_seq == 1)) ' (' num2str(100*sum(sig_p_seq == 1)/sum(~isnan(sig_p_seq)),2) '%) View Cells show expected effect'])
-disp([num2str(sum(sig_p_seq == 0)) ' (' num2str(100*sum(sig_p_seq == 0)/sum(~isnan(sig_p_seq)),2) '%) View Cells show no effect'])
-disp([num2str(sum(sig_p_seq == -1)) ' (' num2str(100*sum(sig_p_seq == -1)/sum(~isnan(sig_p_seq)),2) '%) View Cells show opposite effect'])
-
-%%
-figure
-subplot(2,2,1)
-hist(100*all_context_gain,24)
-xlim([-300 100])
-xlabel('Task Preference (% Change)')
-ylabel('Count')
-box off
-axis square
-title(['Median = ' num2str(nanmedian(100*all_context_gain),2) ' %'])
-
-acg2 = all_context_gain2;
-acg2(acg2 > 4) = 5;
-acg2(acg2 < 1) = -1./acg2(acg2 <1);
-
-subplot(2,2,2)
-histogram(acg2,25)
-xlabel('Task Gain (Relative)')
-ylabel('Count')
-set(gca,'Xtick',[-4 -3 -2 -1 0 1 2 3 4 5])
-box off
-axis square
-title(['|Median| = ' num2str(nanmedian(abs(acg2)),2)])
-xlim([-4 5])
-
 
 %%
 %---Firing Rate Curves for out->in fixations---%
@@ -847,7 +646,7 @@ for p = 1:length(non_place_cell_subregion)
         disp(non_place_cell_subregion{p})
     end
 end
-%%
+
 %combine DG & CA4
 place_region_id(place_region_id == 4) = 0;
 
@@ -856,122 +655,75 @@ place_region_id(place_region_id == 2) = 3;
 
 %combine ProSub and CA1
 place_region_id(place_region_id == 5) = 1;
-%%
-%% Plot Relationship between Peak times in List and Peak Times in Sequence
-x = all_list_peak_times(sig_p_seq == 1)-twin1;
-y = all_seq_peak_times(sig_p_seq == 1)-twin1;
-
-% fr_too_slow = find((all_peak_list(sig_p_seq == 1) < 2) | (all_peak_seq(sig_p_seq == 1) < 2));
-% x(fr_too_slow) = NaN;
-% y(fr_too_slow) = NaN;
-
-x(isnan(y)) = [];
-y(isnan(y)) = [];
-[r,p] = corrcoef(x,y);
-% [r,p] = corr(x,y);
-
-figure
-plot(x,y,'.k')
-xlabel('List Delay to Peak from Fixation Start (ms)')
-ylabel('Sequence Delay to Peak from Fixation Start (ms)')
-title('Significant Response in Sequence and List')
 
 %%
-%---Plot visually now---%
+%---Plot Excitatory vs Inhibitory Results---%
+
+vals = all_in_rates(:,1:twin1); %"baseline" out of field firing rate
+
 [~,place_order] = sort(all_list_peak_times); %sort order by peak firing time
-
-list_ordered = all_in_rates(place_order,:);
-seq_ordered = all_seq_firing_curves(place_order,:);
-sig_p_ordered = sig_p_seq(place_order);
-
-list_ordered = list_ordered(sig_p_ordered == 1,:);
-seq_ordered = seq_ordered(sig_p_ordered == 1,:);
-
-ordered_peaks = all_seq_peak_times(place_order);
-ordered_peaks = ordered_peaks(sig_p_ordered == 1);
-nanseq = find(isnan(ordered_peaks));
-list_ordered(nanseq,:) = [];
-seq_ordered(nanseq,:) = [];
-
-listvals = list_ordered(:,1:twin1); %"baseline" out of field firing rate
-seqvals = seq_ordered(:,1:twin1); %"baseline" out of field firing rate
+all_EI_reordered = place_cell_putative_EI(place_order);
+all_EI_in_rates = all_in_rates(place_order,:);
+all_excitatory_in_rates = all_EI_in_rates(all_EI_reordered == 1,:);
+all_inhibitory_in_rates = all_EI_in_rates(all_EI_reordered == 2,:);
+all_list_peak_times_reorderd = all_list_peak_times(place_order);
 
 figure
-subplot(2,2,1)
-imagesc([-twin1:twin2-1],[1:size(list_ordered,1)],list_ordered)
+subplot(2,3,1)
+imagesc([-twin1:twin2-1],[1:size(all_excitatory_in_rates,1)],all_excitatory_in_rates)
 colormap('jet')
 hold on
-plot([0 0],[1 size(list_ordered,1)],'w--');
+plot([0 0],[1 size(all_excitatory_in_rates,1)],'w--');
 hold off
-xlabel('Time from Fixation Start (ms)')
+xlabel('Time from Fixation Start')
 ylabel('Neuron #')
-title('Images sorted by Image Peak Times')
+title('Exctiatory: out -> in')
 caxis([-std(vals(:)) 1]) %set minumun to standard deviation of baseline since some neurons are greatly inhibited
 xlim([-twin1 twin2])
 colorbar
- axis square
 
-subplot(2,2,2)
-imagesc([-twin1:twin2-1],[1:size(seq_ordered,1)],seq_ordered)
+subplot(2,3,2)
+imagesc([-twin1:twin2-1],[1:size(all_inhibitory_in_rates,1)],all_inhibitory_in_rates)
 colormap('jet')
 hold on
-plot([0 0],[1 size(seq_ordered,1)],'w--');
+plot([0 0],[1 size(all_inhibitory_in_rates,1)],'w--');
 hold off
-xlabel('Time from Fixation Start (ms)')
+xlabel('Time from Fixation Start')
 ylabel('Neuron #')
-title('Sequences sorted by Image Peak Times')
+title('Inhibitory: out -> in')
 caxis([-std(vals(:)) 1]) %set minumun to standard deviation of baseline since some neurons are greatly inhibited
 xlim([-twin1 twin2])
 colorbar
- axis square
- 
-[~,place_order] = sort(all_seq_peak_times); %sort order by peak firing time
 
-
-list_ordered = all_in_rates(place_order,:);
-seq_ordered = all_seq_firing_curves(place_order,:);
-sig_p_ordered = sig_p_seq(place_order);
-
-list_ordered = list_ordered(sig_p_ordered == 1,:);
-seq_ordered = seq_ordered(sig_p_ordered == 1,:);
-
-ordered_peaks = all_seq_peak_times(place_order);
-ordered_peaks = ordered_peaks(sig_p_ordered == 1);
-nanseq = find(isnan(ordered_peaks));
-list_ordered(nanseq,:) = [];
-seq_ordered(nanseq,:) = [];
-
-listvals = list_ordered(:,1:twin1); %"baseline" out of field firing rate
-seqvals = seq_ordered(:,1:twin1); %"baseline" out of field firing rate
-
-
-subplot(2,2,3)
-imagesc([-twin1:twin2-1],[1:size(list_ordered,1)],list_ordered)
-colormap('jet')
+subplot(2,3,3)
+plot([-twin1:twin2-1],nanmean(all_excitatory_in_rates))
 hold on
-plot([0 0],[1 size(list_ordered,1)],'w--');
+plot([-twin1:twin2-1],nanmean(all_inhibitory_in_rates))
+yl = ylim;
+plot([0 0],[yl(1) yl(2)],'k--');
+plot([-44 -44],[yl(1) yl(2)],'k--')
+plot([-twin1 twin2],[0 0],'k')
 hold off
 xlabel('Time from Fixation Start (ms)')
-ylabel('Neuron #')
-title('Images sorted by Sequence Peak Times')
-caxis([-std(vals(:)) 1]) %set minumun to standard deviation of baseline since some neurons are greatly inhibited
+ylabel('Normalized Firing Rate')
+title('Normalized Firing Rate')
 xlim([-twin1 twin2])
-colorbar
-axis square
+box off
+legend({'Excitatory','Inhibitory'})
 
-subplot(2,2,4)
-imagesc([-twin1:twin2-1],[1:size(seq_ordered,1)],seq_ordered)
-colormap('jet')
+subplot(2,3,6)
+histogram(all_list_peak_times_reorderd(all_EI_reordered == 1)-twin1,25)
 hold on
-plot([0 0],[1 size(seq_ordered,1)],'w--');
+histogram(all_list_peak_times_reorderd(all_EI_reordered == 2)-twin1,25)
 hold off
-xlabel('Time from Fixation Start (ms)')
-ylabel('Neuron #')
-title('Sequences sorted by Sequence Peak Times')
-caxis([-std(vals(:)) 1]) %set minumun to standard deviation of baseline since some neurons are greatly inhibited
-xlim([-twin1 twin2])
-colorbar
-axis square
+title('Distrbution of Peak Latencies')
+legend({'Excitatory','Inhibitory'})
 
-subtitle(['Correlation between peak response: r = ' num2str(r(2),2) ', p = ' num2str(p(2),2)])
-%%
+subplot(2,3,4)
+plot(log(place_cell_whole_session_FR),all_list_peak_times-twin1,'.k')
+xlabel('Log(Firing Rate) Hz')
+ylabel('Peak Latency')
+title('Peak Latency vs Firing Rate')
+
+
+
