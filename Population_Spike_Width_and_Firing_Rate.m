@@ -8,37 +8,40 @@ peak_valley_width = [];
 half_max_width = [];
 median_ISI = [];
 percent_ISI_25 = [];
-for monkey = 1:2
+monkeys = {'Vivian','Tobii'};
+figure_dir = {};
+for monk = 2:-1:1
+    monkey = monkeys{monk};
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %---Read in Excel Sheet for Session data---%%%
     %only need to run when somethings changed or sessions have been added
-    if monkey == 1%strcmpi(monkey,'Vivian')
-        excel_dir = '\\towerexablox.wanprc.org\Buffalo\eblab\PLX files\Vivian\';
+    if strcmpi(monkey,'Vivian')
+        excel_dir = 'P:\eblab\PLX files\Vivian\';
         excel_file = [excel_dir 'Vivian_Recording_Notes-ListSQ.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ListSQ\PW Resorted\';
-        figure_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ListSQ\PW Resored Figures\';
+        data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\PW Recording Files\';
+        figure_dir = 'D:\MATLAB\ViewCellPaperAnalysis\PW Figures\';
         
-        listsq_read_excel(data_dir,excel_file);
+        %listsq_read_excel(data_dir,excel_file);
         load([data_dir 'Across_Session_Unit_Data_Vivian.mat'])
         
-        predict_rt = 156;%156 ms prediction 5-percentile
+        predict_rt = 155;%155.85 ms prediction 5-percentile
         chamber_zero = [13.5 -11]; %AP ML
         
-    elseif monkey ==2%strcmpi(monkey,'Tobii')
-        excel_dir = '\\towerexablox.wanprc.org\Buffalo\eblab\PLX files\Tobii\';
+    elseif strcmpi(monkey,'Tobii')
+        excel_dir = 'P:\eblab\PLX files\Tobii\';
         excel_file = [excel_dir 'Tobii_recordingnotes.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ListSQ\TO Recording Files\';
-        figure_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ListSQ\TO Figures\';
+        data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+        figure_dir = 'D:\MATLAB\ViewCellPaperAnalysis\TO Figures\';
         
-        predict_rt = 138;%ms prediction 5-percentile
+        predict_rt = 135;%ms prediction 5-percentile
         chamber_zero = [7.5 15]; %AP ML, his posertior hippocampus appears slightly shorter/more compressed than atlas
         
-        listsq_read_excel(data_dir,excel_file);
+        %listsq_read_excel(data_dir,excel_file);
         load([data_dir 'Across_Session_Unit_Data_Tobii.mat'])
-        session_data(end) = [];%last file doesn't have strobe signal working on importing the data
+        session_data(end) = [];%last file doesn't have strobe signal working so have no timing singnal :(
     end
     
-    for session = 1:length(session_data);
+    for session = 1:length(session_data)
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%%---import task and unit data---%%%
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

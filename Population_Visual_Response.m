@@ -129,7 +129,7 @@ for monk =2:-1:1
                 
                 %---Misc. Parameters---%
                 monkey_all_unit_count(1,monk) = monkey_all_unit_count(1,monk)+1; %unit count
-                ll_multi_unit_count = all_multi_unit_count+multiunit(unit); %multiunit count
+                all_multi_unit_count = all_multi_unit_count+multiunit(unit); %multiunit count
                 all_unit_names = [all_unit_names {[task_file(1:end-11) '_' unit_stats{1,unit}]}]; %unit name
                 all_monkeys = [all_monkeys monk]; %1s and 2s
                 AP_location = [AP_location chamber_zero(1)+ session_data{sess}.location(1)]; %AP location of recorded place cell

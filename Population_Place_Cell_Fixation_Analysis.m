@@ -57,6 +57,7 @@ all_in_rates = [];%fixations out-> in (the main one)
 all_in_minus_out_rates = [];%out-> in minus out-> out
 all_out_rates = []; %fixaiton out-> out normalized by max of out->out
 all_fixation_rates = [];%all fixaions normalized by max of all fixations
+all_infield_temporal_info = [];%out2in temporal information 
 all_list_peak_times = [];%time of peak firing rate of place cells for out-> in fixations
 sig_p_list = []; %whether fixation firing rates were reliably different for in vs out for list
 all_peak_list = []; %peak firing rate during list
@@ -200,6 +201,16 @@ for monk = 2:-1:1
                 all_peak_list = [all_peak_list stats_across_tasks(2,unit)]; %peak firing rate during list
                 all_list_peak_times = [all_list_peak_times stats_across_tasks(1,unit)];%time of peak firing rate of place cells for out-> in fixations
                 
+                %get temporal information of out2in firing rate curve,
+                %copied math from estimate mutual info code
+                total_time = 1:twin1+twin2;
+                p_x = total_time/sum(total_time);
+                lambda_x = in_curve2;
+                lambda = nansum(nansum(in_curve2.*p_x));
+                plogp = lambda_x.*log2(lambda_x/lambda);
+                temporal_info = nansum(nansum(plogp.*p_x)); %bits/second
+                all_infield_temporal_info = [all_infield_temporal_info temporal_info]; 
+                    
                 %firing rate out-> out
                 firing_rate = list_fixation_locked_firing{unit}(in_out{unit} == 4,:); %get spike trains
                 out_curve = nandens(firing_rate,smval,'gauss',Fs,'nanflt'); %calculate smoothed firing rate
@@ -329,6 +340,7 @@ place_cell_AP_location(sig_p_list == 0) = [];
 place_cell_subregion(sig_p_list == 0) = [];
 place_cell_putative_EI(sig_p_list == 0) = [];
 place_cell_whole_session_FR(sig_p_list == 0) = [];
+all_infield_temporal_info(sig_p_list == 0) =[];
 sig_p_list(sig_p_list == 0) = [];
 
 %remove neurons without a definitive peak
@@ -346,6 +358,7 @@ place_cell_AP_location(isnan(all_list_peak_times)) = [];
 place_cell_subregion(isnan(all_list_peak_times)) = [];
 place_cell_putative_EI(isnan(all_list_peak_times)) = [];
 place_cell_whole_session_FR(isnan(all_list_peak_times)) = [];
+all_infield_temporal_info(isnan(all_list_peak_times)) = [];
 all_list_peak_times(isnan(all_list_peak_times)) = [];
 
 %% Plot Psuedo-Population Firing Rate Curves
@@ -662,11 +675,13 @@ place_region_id(place_region_id == 5) = 1;
 vals = all_in_rates(:,1:twin1); %"baseline" out of field firing rate
 
 [~,place_order] = sort(all_list_peak_times); %sort order by peak firing time
+all_place_cell_unit_names = all_place_cell_unit_names(place_order);
 all_EI_reordered = place_cell_putative_EI(place_order);
 all_EI_in_rates = all_in_rates(place_order,:);
 all_excitatory_in_rates = all_EI_in_rates(all_EI_reordered == 1,:);
 all_inhibitory_in_rates = all_EI_in_rates(all_EI_reordered == 2,:);
 all_list_peak_times_reorderd = all_list_peak_times(place_order);
+all_infield_temporal_info = all_infield_temporal_info(place_order);
 
 figure
 subplot(2,3,1)
@@ -716,6 +731,7 @@ histogram(all_list_peak_times_reorderd(all_EI_reordered == 1)-twin1,25)
 hold on
 histogram(all_list_peak_times_reorderd(all_EI_reordered == 2)-twin1,25)
 hold off
+box off
 title('Distrbution of Peak Latencies')
 legend({'Excitatory','Inhibitory'})
 
@@ -724,6 +740,22 @@ plot(log(place_cell_whole_session_FR),all_list_peak_times-twin1,'.k')
 xlabel('Log(Firing Rate) Hz')
 ylabel('Peak Latency')
 title('Peak Latency vs Firing Rate')
+
+
+meanExcitatoryInfo = median(all_infield_temporal_info(all_EI_reordered == 1));
+meanInhibitoryInfo = median(all_infield_temporal_info(all_EI_reordered == 2));
+[~,pInfo] = kstest2(all_infield_temporal_info(all_EI_reordered == 1),all_infield_temporal_info(all_EI_reordered == 2));
+subplot(2,3,5)
+histogram(all_infield_temporal_info(all_EI_reordered == 1),25)
+hold on
+histogram(all_infield_temporal_info(all_EI_reordered == 2),25)
+hold off
+box off
+xlabel('Skaggs Information')
+ylabel('View Cell Count')
+title(['Median Exc Info = ' num2str(meanExcitatoryInfo,3) ...
+    ', Meadian Inhib Info = ' num2str(meanInhibitoryInfo,3),...
+    ' (p = ' num2str(pInfo,3) ')' ])
 
 
 

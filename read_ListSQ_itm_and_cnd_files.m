@@ -1,4 +1,4 @@
-function [itmlist,sequence_items,sequence_locations] = read_ListSQ_itm_and_cnd_files(itmfile,cndfile)
+function [itmlist,sequence_items,sequence_locations,imageNames] = read_ListSQ_itm_and_cnd_files(itmfile,cndfile)
 % writteen by Seth Konig August, 2014
 % Function imports item file and and grabs condition file to determine which items
 % are associated with which condition (itmlist) since conditions are randomly
@@ -6,17 +6,18 @@ function [itmlist,sequence_items,sequence_locations] = read_ListSQ_itm_and_cnd_f
 % items (the largets item #) are assoicated with which sequence.
 %
 % Code rechecked for bugs October 17, 2016 SDK
+% Added ImageNames to output SDK 8/31/2020, since some reconstituted sets arent stragith forward
 
 %strtrim to remove any preceding or trailing spaces
 if nargin == 1 %old input style
     itmfile = strtrim(itmfile);
-    ITMFile = ['C:\Users\sethk\OneDrive\Documents\MATLAB\ListSQ\Item and Conditions Files\' itmfile];
-    CNDFile = ['C:\Users\sethk\OneDrive\Documents\MATLAB\ListSQ\Item and Conditions Files\' itmfile(1:end-4) '.cnd'];
+    ITMFile = ['D:\MATLAB\ListSQ\Item and Conditions Files\' itmfile];
+    CNDFile = ['D:\MATLAB\ListSQ\Item and Conditions Files\' itmfile(1:end-4) '.cnd'];
 elseif nargin == 2 %newer input style since now  can have item files and cnd files with different #s
     itmfile = strtrim(itmfile);
     cndfile = strtrim(cndfile);
-    ITMFile = ['C:\Users\sethk\OneDrive\Documents\MATLAB\ListSQ\Item and Conditions Files\' itmfile];
-    CNDFile = ['C:\Users\sethk\OneDrive\Documents\MATLAB\ListSQ\Item and Conditions Files\' cndfile];
+    ITMFile = ['D:\MATLAB\ListSQ\Item and Conditions Files\' itmfile];
+    CNDFile = ['D:\MATLAB\ListSQ\Item and Conditions Files\' cndfile];
 else
     error('Too many inputs')
 end
@@ -70,6 +71,18 @@ end
 
 if first_img_item ~= 20
    error('First Image Item should be 20 but double check!')
+end
+
+imgInd = 1;
+imageNames = cell(1,96);
+for i = 1:size(itmfil,1)
+    str = textscan(itmfil(i,:),'%s');
+    if ~isempty(strfind(str{1}{end},'.bmp'))
+        fileName = str{1}{end};
+        slashes = strfind(fileName,'\');
+        imageNames{imgInd} = fileName(slashes(end)+1:end);
+        imgInd = imgInd+1;
+    end
 end
 
 %define last item in both sequences 
