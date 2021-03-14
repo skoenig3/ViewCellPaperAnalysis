@@ -5,7 +5,7 @@
 clar %clear,clc
 
 %where to store spatial analysis figure copies
-summary_directory = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\PopulationFigures\Saccade Amplitude\';
+summary_directory = 'D:\MATLAB\ViewCellPaperAnalysis\PopulationFigures\Saccade Amplitude\';
 if ~isdir(summary_directory)
     mkdir(summary_directory)
 end
@@ -25,18 +25,20 @@ all_corrs_pctiles = []; %observed shuffled percentile
 spatialness = []; %1 for place cell, 0 for non place cell
 all_unit_names = {};
 all_monkeys = []; %1s and 2s for monkeys
+all_sacamps = [];
 
+monkeys = {'Vivian','Tobii'};
 figure_dir = {};
-all_sacamps = []; %saccade amplitudes for significant units
-for monkey = 2:-1:1
+for monk = 2:-1:1
+    monkey = monkeys{monk};
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
     %---Read in Excel Sheet for Session data---%%%
     %only need to run when somethings changed or sessions have been added
-   if monkey == 1%strcmpi(monkey,'Vivian')
+    if strcmpi(monkey,'Vivian')
         excel_dir = 'P:\eblab\PLX files\Vivian\';
         excel_file = [excel_dir 'Vivian_Recording_Notes-ListSQ.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\PW Recording Files\';
-        figure_dir{monkey} = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\PW Figures\';
+        data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\PW Recording Files\';
+        figure_dir = 'D:\MATLAB\ViewCellPaperAnalysis\PW Figures\';
         
         %listsq_read_excel(data_dir,excel_file);
         load([data_dir 'Across_Session_Unit_Data_Vivian.mat'])
@@ -44,11 +46,11 @@ for monkey = 2:-1:1
         predict_rt = 155;%155.85 ms prediction 5-percentile
         chamber_zero = [13.5 -11]; %AP ML
         
-    elseif monkey ==2%strcmpi(monkey,'Tobii')
+    elseif strcmpi(monkey,'Tobii')
         excel_dir = 'P:\eblab\PLX files\Tobii\';
         excel_file = [excel_dir 'Tobii_recordingnotes.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\TO Recording Files\';
-        figure_dir{monkey} = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\TO Figures\';
+        data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+        figure_dir = 'D:\MATLAB\ViewCellPaperAnalysis\TO Figures\';
         
         predict_rt = 135;%ms prediction 5-percentile
         chamber_zero = [7.5 15]; %AP ML, his posertior hippocampus appears slightly shorter/more compressed than atlas

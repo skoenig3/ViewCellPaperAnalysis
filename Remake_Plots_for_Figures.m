@@ -5,7 +5,7 @@
 
 % %plots fixation aligned rasters so that can export to eps
 clar
-data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
 
 task_file = 'TO160325';
 unit_name = 'sig002a';
@@ -118,8 +118,8 @@ hold off
 %% List vs Sequence Analysis
 %
 clar
-data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
-%data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PW Resorted\';
+data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+%data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\PW Resorted\';
 
 task_file = 'TO160318';
 unit_name = 'sig003a';
@@ -339,17 +339,17 @@ end
 %plots fixation aligned rasters so that can export to eps
 
 clar
-data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
-%data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PW Resorted\';
+data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+%data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\PW Resorted\';
 
-task_file = 'TO160209_3';
+task_file = 'TO151208_3';
 unit_name = 'sig001a';
-
 
 
 load([data_dir  task_file(1:8) '_3-spatial_analysis_results.mat']);
 load([data_dir  task_file(1:8) '-Saccade_Direction_and_Amplitude_Analysis.mat']);
 load([data_dir  task_file(1:8) '-Place_Cell_Analysis.mat']);
+
 
 H = define_spatial_filter(filter_width);
 
@@ -496,6 +496,7 @@ xlabel('Time from Saccade Start (ms)')
 title('Fixation Aligned-Saccade Direction')
 box off
 
+
 %---Firing Rate Map---%
 figure
 firing_rate_map = get_firing_rate_map({eyepos{unit},spike_times{unit}},imageX,imageY,binsize,H,Fs,'all'); %get firing rate map
@@ -529,6 +530,76 @@ xlim([-twinad1 twinad2]);
 xlabel('Time from Saccade Start (ms)')
 ylabel('Firing Rate (Hz)')
 title('All Saccade Aligned Activity')
+
+
+%---Plot Distribution of Saccade Directions and Preffered Direction---%
+prefferedDirs = sort(sac_dirs(prefered_dirs));
+antiprefferedDirs = sort(sac_dirs(anti_prefered_dirs));
+if max(diff(prefferedDirs)) < 45
+    prefLimits = [min(prefferedDirs) max(prefferedDirs)];
+else
+    disp('break in gaps...verify this works!')
+    gaps = find(diff(prefferedDirs) > 45);
+    if length(gaps) > 1
+        error('wtf')
+    end
+    prefLimits = [prefferedDirs(1) prefferedDirs(gaps); prefferedDirs(gaps+1) prefferedDirs(end)];
+end
+if max(diff(antiprefferedDirs)) < 45
+    anitLimits = [min(antiprefferedDirs) max(antiprefferedDirs)];
+else
+     disp('break in gaps...verify this works!')
+    gaps = find(diff(antiprefferedDirs) > 45);
+    if length(gaps) > 1
+        error('wtf')
+    end
+    anitLimits = [antiprefferedDirs(1) antiprefferedDirs(gaps); antiprefferedDirs(gaps+1) antiprefferedDirs(end)];
+end
+
+[map, name, desc] = cmap('C6');
+figure
+subplot(1,2,1)
+imagesc([0 1],sort(sac_dirs),sort(sac_dirs)');
+hold on
+for p = 1:size(prefLimits,1)
+    plot([2 2],prefLimits(p,:),'g')
+end
+for a = 1:size(anitLimits,1)
+    plot([2 2],anitLimits(a,:),'k')
+end
+hold off
+xticks([]);
+ylim([-180 180])
+yticks([-180 -135 -90 -45 0 45 90 135 180])
+box off
+colormap(map)
+
+subplot(1,2,2)
+[counts,edges] = histcounts(sac_dirs,-180:8:180);
+counts2 = [counts(end:-1:1) counts counts];
+counts2 = filtfilt(1/smval_deg/2*ones(1,smval_deg/2),1,counts2);
+counts2 = counts2(length(counts)+1:length(counts)*2);
+plot(counts2',edges(1:end-1))
+hold on
+%plot(counts',edges(1:end-1)) %raw data
+for p = 1:size(prefLimits,1)
+    plot([0.1 0.1],prefLimits(p,:),'g')
+end
+for a = 1:size(anitLimits,1)
+    plot([0.1 0.1],anitLimits(a,:),'k')
+end
+hold off
+set(gca, 'YAxisLocation', 'Right','xdir','reverse')
+ylim([-180 180])
+yticks([-180 -135 -90 -45 0 45 90 135 180])
+xticks([]);
+box off
+
+%for visualization inspection to make sure consistent with population
+%level-data
+figure
+polar(edges/180*pi,[counts2 counts2(1)])
+
 
 %---Polar Plots of Firing Rates---%
 figure(101)
@@ -572,8 +643,6 @@ if (spatial_info.shuffled_rate_prctile(unit) > 95) && (spatial_info.spatialstabi
     hold off
     title(sprintf(['Max FR. ' num2str(max(smoothed_direction_curve),2) ' Hz, MRL: ' num2str(mrls.all_saccades(unit),2) ' (' num2str(mrls.all_saccades_shuffled_prctile(unit),3) '%%)' ...
         '\n Out2Out mrl: ' num2str(mrls.out2out(unit),2) ' (' num2str(mrls.out2out_shuffled_prctile(unit),3) '%%)']))
-    
-    %---Out2Out Fixation Aligned Raster Sorted by Saccade Direction---%
 end
 
 
@@ -582,8 +651,8 @@ end
 % %plots fixation aligned rasters so that can export to eps
 %
 % clar
-% data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
-% %data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\PW Resorted\';
+% data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+% %data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\PW Resorted\';
 %
 % %non-place cell amplitude tuning 1
 % task_file = 'TO151208_3';
@@ -748,7 +817,7 @@ end
 
 set(gcf,'renderer','Painters')
 
-data_dir = 'C:\Users\sethk\OneDrive\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
 
 task_file = 'TO160114_3';
 unit_name = 'sig004b';

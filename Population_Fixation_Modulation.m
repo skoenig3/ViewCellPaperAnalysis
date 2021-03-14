@@ -15,7 +15,7 @@ Fs = 1000;%Hz
 min_num_fix = 250; %at least 250 fixatoins with a certain duration to analyze for time limited to fixation duration
 min_blks = 2; %only analyzes units with at least 2 novel/repeat blocks (any block/parts of blocks)
 
-summary_directory = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalyses\PopulationFigures\Eye Movement\';
+summary_directory = 'D:\MATLAB\ViewCellPaperAnalysis\PopulationFigures\Eye Movement\';
 if ~isdir(summary_directory)
     mkdir(summary_directory)
 end
@@ -45,13 +45,13 @@ figure_dir = {};
 for monk = 2:-1:1
     monkey = monkeys{monk};
     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    %---Read in Excel Sheet for sess data---%%%
-    %only need to run when somethings changed or sesss have been added
+    %---Read in Excel Sheet for Session data---%%%
+    %only need to run when somethings changed or sessions have been added
     if strcmpi(monkey,'Vivian')
         excel_dir = 'P:\eblab\PLX files\Vivian\';
         excel_file = [excel_dir 'Vivian_Recording_Notes-ListSQ.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\PW Recording Files\';
-        figure_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\PW Figures\';
+        data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\PW Recording Files\';
+        figure_dir = 'D:\MATLAB\ViewCellPaperAnalysis\PW Figures\';
         
         %listsq_read_excel(data_dir,excel_file);
         load([data_dir 'Across_Session_Unit_Data_Vivian.mat'])
@@ -62,8 +62,8 @@ for monk = 2:-1:1
     elseif strcmpi(monkey,'Tobii')
         excel_dir = 'P:\eblab\PLX files\Tobii\';
         excel_file = [excel_dir 'Tobii_recordingnotes.xlsx']; %recording notes
-        data_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
-        figure_dir = 'C:\Users\seth.koenig\Documents\MATLAB\ViewCellPaperAnalysis\TO Figures\';
+        data_dir = 'D:\MATLAB\ViewCellPaperAnalysis\TO Recording Files\';
+        figure_dir = 'D:\MATLAB\ViewCellPaperAnalysis\TO Figures\';
         
         predict_rt = 135;%ms prediction 5-percentile
         chamber_zero = [7.5 15]; %AP ML, his posertior hippocampus appears slightly shorter/more compressed than atlas
